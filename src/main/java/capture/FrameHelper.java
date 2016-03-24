@@ -24,7 +24,6 @@ import org.opencv.features2d.*;
 
 public class FrameHelper {
 
-    Mat myframe;
     int ismyframeuse = 0;
     int palm_radius;
 
@@ -49,66 +48,62 @@ public class FrameHelper {
     Rect[] faces;
     
     
-    Mat facedetect(Mat frame, CascadeClassifier facecad)
+    Rect facedetect(Mat frame, CascadeClassifier facecad)
     {
 	//System.out.println("info: face detection started");
 	Mat frameGray = new Mat();
-	Mat frame_ = new Mat(new Size(frame.width(), frame.height()), frame.type());
-	
-	frame.copyTo(frame_);;
 	
 	Rect p = new Rect();
-	//Initialize
+	
 	p.height = 0;
 	p.width = 0;
 	p.x = 0;
 	int maxarea = -1;
 	int maxareai = -1;
 	p.y = 0;
-	//System.out.println(frame.nChannels() + " " + frameGray.nChannels());
-	//System.out.println(frame.depth());
 
+	//Imgproc.cvtColor(frame, frameGray, Imgproc.COLOR_BGR2GRAY);
 
-	Imgproc.cvtColor(frame_, frameGray, Imgproc.COLOR_BGR2GRAY);
-
-	Imgproc.equalizeHist(frameGray, frameGray); 
+	//Imgproc.equalizeHist(frameGray, frameGray); 
 
 	MatOfRect faces_ = new MatOfRect();
 	facecad.detectMultiScale(frameGray, 
-	                         faces_, 
+	                         faces_/*, 
 	                         1.1, 
 	                         2, 
-	                         0 | Objdetect.CASCADE_SCALE_IMAGE, 
-	                         new Size(frame.width()/16, frame.height()/16), 
-	                         new Size(frame.width(), frame.height()));
+	                         0 | Objdetect.CASCADE_FIND_BIGGEST_OBJECT, 
+	                         new Size(30, 30), 
+	                         new Size(frame.width(), frame.height())*/);
 	faces = faces_.toArray();
-
-	for (int i = 0; i < faces.length;i++) //consider the first face
+//	System.out.println(faces.length + " adet yüz bulundu.");
+	for (Rect face: faces) //consider the first face
 	{
-	    int x = (int)faces[i].x;
-	    int halfWidth = (int)(faces[i].width*0.5);
+	    int x = (int)face.x;
+	    int halfWidth = (int)(face.width*0.5);
 
-	    int y = (int)faces[i].y;
-	    int halfHeight = (int)(faces[i].height*0.5);
+	    int y = (int)face.y;
+	    int halfHeight = (int)(face.height*0.5);
 	    Point center = new Point(x + halfWidth, y + halfHeight);
 
 
-	    maxareai = (faces[i].area()>maxarea) ? i : maxareai;
-	    maxarea = (faces[i].area()>maxarea) ? (int)faces[i].area() : maxarea;
-	    Imgproc.ellipse(frame_, 
+	    if(face.area()>maxarea){
+		p = face;
+		maxarea = (int)face.area();
+	    }
+	    Imgproc.ellipse(frame, 
 	                    center, 
-	                    new Size((int)(faces[i].width*0.5), (int)(faces[i].height*0.5)), 
+	                    new Size((int)(face.width*0.5), (int)(face.height*0.5)), 
 	                    0.0, 
 	                    0.0, 
 	                    360.0, 
-	                    new Scalar(0, 255, 0, 255),
+	                    new Scalar(0, 255, 255, 0),
 	                    4, 
 	                    8, 
 	                    0);
+	   // System.out.println("elips çizildi");
 	}
-	if(faces.length!=0) p = faces[maxareai];
 	//System.out.println("info: face detection succeeded");
-	return frame_;
+	return p;
     }
 
 
@@ -181,10 +176,9 @@ public class FrameHelper {
 	//System.out.println("info: skin color modeling succeeded");
     }
 
-    void Get_hull()
+    void Get_hull(Mat frame)
     {
 	//System.out.println("info: hull fitting started");
-	Mat frame = myframe;
 	defects = new MatOfInt4[contours.size()];
 	hull = new MatOfInt[contours.size()];
 	fingerseq.clear();
@@ -227,7 +221,7 @@ public class FrameHelper {
 	//System.out.println("info: hull fitting succeeded");
 
     }
-    Mat Get_Palm_Center()
+    int Get_Palm_Center(Mat frame)
     {
 	//System.out.println("info: getting palm center point");
 	Point distemp = new Point();
@@ -235,7 +229,6 @@ public class FrameHelper {
 	int mydft = 0;
 	palm_center.x = armcenter.x;
 	palm_center.y = armcenter.y;
-	Mat frame_ = myframe;
 	if (palm.size() > 0)
 	{
 
@@ -267,8 +260,8 @@ public class FrameHelper {
 		palm_center.y = armcenter.y;
 	    }
 	    if (palm.size() < 3) palm_radius = 0;
-	    Imgproc.circle(frame_, palm_center, 5, new Scalar(0, 255, 0), -1, 8, 0);
-	    Imgproc.ellipse(frame_, palm_center, new Size(palm_radius, palm_radius), 0, 0, 360, new Scalar(0.0, 255.0, 0.0, 0.0), 4, 8, 0);
+	    Imgproc.circle(frame, palm_center, 5, new Scalar(0, 255, 0), -1, 8, 0);
+	    Imgproc.ellipse(frame, palm_center, new Size(palm_radius, palm_radius), 0, 0, 360, new Scalar(0.0, 255.0, 0.0, 0.0), 4, 8, 0);
 
 	    finger_dft.clear();
 
@@ -281,13 +274,13 @@ public class FrameHelper {
 		{
 		    mydft++;
 		    finger_dft.add(p);
-		    Imgproc.circle(frame_, p, 5, new Scalar(0, 255, 255), -1, 8, 0);
+		    Imgproc.circle(frame, p, 5, new Scalar(0, 255, 255), -1, 8, 0);
 		}
 	    }
 
 	}
 	//System.out.println("info: palm center point calculated");
-	return frame_;
+	return mydft;
 
     }
 
@@ -296,8 +289,6 @@ public class FrameHelper {
 	//System.out.println("info: hand detection started");
 	Size sz = frame.size();
 
-	Mat frame_ = frame;
-	Mat myframe_ipl = myframe;
 
 	MatOfPoint maxrecord = null;
 	long max_contour_size=-1;
@@ -327,14 +318,14 @@ public class FrameHelper {
 	//Turn to YCrCb
 	Mat p = new Mat(); Mat b = new Mat();
 
-	Imgproc.cvtColor(frame, p, Imgproc.COLOR_BGR2GRAY);
+	Imgproc.cvtColor(frame, p, Imgproc.COLOR_BGR2YCrCb);
 
 	//Turn to Gray
 	//cvtColor(frame, gray, CV_BGR2GRAY);
-	Imgproc.threshold(p, mask, 50, 150, 0);
+	//Imgproc.threshold(p, mask, 50, 150, 0);
 
-	/*for(int i = 0;i < image.cols(); i++)
-	    for (int j = 0;j < image.rows(); j++)
+	for(int i = 0;i < frame.cols(); i++)
+	    for (int j = 0;j < frame.rows(); j++)
 	    {
 		double[] vals = p.get(j, i);
 		y = (int)vals[0];
@@ -352,7 +343,7 @@ public class FrameHelper {
 		{
 		    //mybackground = cvCreateImage(sz, image.depth(), image.arrayChannels());
 		    //b = new Mat(mybackground);
-		    double[] valims = image.get(j, i);
+		    double[] valims = frame.get(j, i);
 		    double[] valbacks = mybackground.get(j, i);
 		    if (
 			    Math.abs(
@@ -384,13 +375,13 @@ public class FrameHelper {
 		    }
 		}
 	    }
-	}*/
+	}
 	//mask = new Mat(maskmat);
-	//Imgproc.erode(mask, mask, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2,2))); //ERODE first then DILATE to eliminate the noises.
-	//Imgproc.dilate(mask, mask, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2,2))); //ERODE first then DILATE to eliminate the noises.
+	Imgproc.erode(mask, mask, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2,2))); //ERODE first then DILATE to eliminate the noises.
+	Imgproc.dilate(mask, mask, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2,2))); //ERODE first then DILATE to eliminate the noises.
 	//Imgproc.morphologyEx(mask, mask, null, null, Imgproc.MORPH_OPEN, 1);
 	//mask.convertTo(mask, CvType.CV_8UC1);
-	Imgproc.findContours(mask, contours, new Mat(new Size(320, 240), 0),Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+	Imgproc.findContours(mask, contours, new Mat(new Size(150, 100), 0),Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
 
 	for(int z = 1; z < contours.size(); z++)
 	{
@@ -403,14 +394,14 @@ public class FrameHelper {
 		contour_center = Imgproc.minAreaRect(new MatOfPoint2f(point.toArray()));
 		armcenter.x = contour_center.center.x;
 		armcenter.y = contour_center.center.y;
-		Imgproc.circle(myframe_ipl, armcenter,10, new Scalar(255,255,255),-1, 8, 0);
-		Get_hull();
+		Imgproc.circle(frame, armcenter,10, new Scalar(255,255,255),-1, 8, 0);
+		Get_hull(frame);
 	    }
 
 
 	}
 	//System.out.println("info: hand detection succeeded");
-	return frame_;
+	return frame;
     }
 
     Mat fill(Mat mat, int i, int j, double val){
@@ -432,6 +423,7 @@ public class FrameHelper {
 	double vec2y = c.y - a.y;
 	return ((vec1x*vec2x + vec1y*vec2y)) / (Math.sqrt(((vec1x*vec1x) + (vec1y*vec1y)))*Math.sqrt(((vec2x*vec2x) + (vec2y*vec2y))));
     }
+    
     Comparator<Point> point_compare(){
 	return new Comparator<Point>() {
 	    
@@ -444,14 +436,13 @@ public class FrameHelper {
 	}; 
     }
     
-    int Get_fingertip() //number of fingertips
+    int Get_fingertip(Mat frame) //number of fingertips
     {
 	Point[] gaps = new Point[150];
 	Point[] possible_tips = new Point[200];
 
 	Point mypoint_temp = new Point(0.0, 0.0);
 	
-	Mat frame = myframe;
 	Point tmp_cvpnt = new Point();
 	int cnt_finger = 0;
 
@@ -511,7 +502,7 @@ public class FrameHelper {
 		p.x = possible_tips[i].x;
 		p.y = possible_tips[i].y;
 		//checked_tips.push_back(mypoint_temp);
-		Imgproc.circle(myframe, p, 5, new Scalar(0,0,0), -1, 8, 0);
+		Imgproc.circle(frame, p, 5, new Scalar(0,0,0), -1, 8, 0);
 		//while (gaps[++pnt].x < possible_tips[i].x);
 	    }
 	}
@@ -534,32 +525,28 @@ public class FrameHelper {
 
     Mat mygesturedetect(Mat frame) //-1 undetected, 0-scissor, 1-rock, 2-paper
     {
-	//String gesture = "";
-	if(myframe != null)
-	    myframe.release();
-	
-	myframe = new Mat(new Size(frame.width(), frame.height()), frame.type());
-	frame.copyTo(myframe);
-	//mybackground = myframe;
+	String gesture = "";
+	mybackground = frame;
 	Rect faceregion;
-	//int rmax = 0, rmin = 0, gmax = 0, gmin = 0, bmax = 0, bmin = 0;
-	myframe = facedetect(myframe, face_cascade);
+	int rmax = 0, rmin = 0, gmax = 0, gmin = 0, bmax = 0, bmin = 0;
+	faceregion = facedetect(frame, face_cascade);
 	//faceregion = handdetect_haar(frame, fist_cascade);
-	//SkinColorModel(frame, faceregion, rmax, rmin, gmax, gmin, bmax, bmin);
-	//myframe = HandDetection(myframe, faceregion, rmax, rmin, gmax, gmin, bmax, bmin);
-	//myframe = Get_Palm_Center();
-	//int tips=Get_fingertip();
-	
-	/*int flag = (contours == null) ? 1 : 0;
+	SkinColorModel(frame, faceregion, rmax, rmin, gmax, gmin, bmax, bmin);
+	Mat p = HandDetection(frame, faceregion, rmax, rmin, gmax, gmin, bmax, bmin);
+	int dfts = Get_Palm_Center(frame);
+	int tips=Get_fingertip(frame);
+
+	int flag = (contours == null) ? 1 : 0;
 	if (flag == 1) gesture = "ANLAMSIZ";
+	System.out.println("Tip sayısı: " + tips + " - " + "dfts: " + dfts);
 	if (tips >= 4 && dfts >= 3 && tips<=6&&dfts<=5) gesture = "KAĞIT"; //paper
 	if (tips ==0 && dfts>=2 && dfts<=5) gesture = "KAĞIT";//paper, special case 1 (open palm with all fingers together)
 	if (tips == 0) gesture = "TAŞ";//rock
 	if (tips >= 1 && tips <= 2 && dfts >= 2 && dfts <= 4) gesture = "MAKAS";//scissors
 	if (tips == 3 && dfts >= 2 && dfts <= 3) gesture = "MAKAS";//scissors
 	if (tips == 3 && dfts >= 4 && dfts <= 5) gesture = "KAĞIT";//paper
-	System.out.println(gesture);*/
-	return myframe;
+	System.out.println("Gesture: " + gesture);
+	return p;
     }
 
 

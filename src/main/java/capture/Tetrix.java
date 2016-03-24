@@ -48,11 +48,16 @@ public class Tetrix{
     public Tetrix() {
     }
 
-    void begin(){
-	new GrabThread().start();
+    void begin() throws InterruptedException{
+	GrabThread t1 = new GrabThread();
+	DetectionThread t2 = new DetectionThread();
+
+	t1.start();
+	t2.start();
+
     }
 
-    VideoCapture grabber = new VideoCapture();
+
     Mat videoIm = new Mat();
     Frame frame = new Frame();
     FrameHelper helper = new FrameHelper();
@@ -60,41 +65,39 @@ public class Tetrix{
     class GrabThread extends Thread{
 	@Override
 	public void run() {
+	    VideoCapture grabber = new VideoCapture();
 	    grabber.open(0);
+
 	    if(!grabber.isOpened())
 		System.exit(-1);
-	    
+
+	    System.out.println("grabber started");
 	    frame.setVisible(true);
+
 	    for (;;){
-		DetectionThread detect = new DetectionThread();
-		if(grabber.read(videoIm)){
+		System.out.println("capturing...");
+		if(grabber.grab()){
+		    grabber.read(videoIm);
 		    frame.render(videoIm);
-		    detect.start();
 		}
-		else{
-		    //System.out.println("Görüntü yakalanırken hata oluştu.");
-		    break;
-		}
-	    }  
+	    }
+
 	} 
     }
 
     class DetectionThread extends Thread{
 	@Override
 	public void run() {
-	    synchronized (helper) {
-		videoIm = helper.mygesturedetect(videoIm);
+	    for(;;){
+		if(!videoIm.empty())
+		    videoIm = helper.mygesturedetect(videoIm);
 	    }
-	    
+
 	}  
     } 
 
-public static void main(String[] args) {
-    EventQueue.invokeLater(new Runnable() {
-	public void run() {
-	    System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-	    Tetrix tetrix = new Tetrix();
-	    tetrix.begin();
-	}
-    });
-}}
+    public static void main(String[] args) throws InterruptedException {
+	System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+	Tetrix tetrix = new Tetrix();
+	tetrix.begin();
+    }}
