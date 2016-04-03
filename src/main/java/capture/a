@@ -1,0 +1,7 @@
+Point P_0 = new Point(scale*(cols/2), scale*(rows/4));
+	Point P_1 = new Point(scale*(cols*5/12), scale*(rows*5/12));
+	Point P_2 = new Point(scale*(cols*7/2), scale*(rows*5/12));
+	Point P_3 = new Point(scale*(cols/2), scale*(rows*7/12));
+	Point P_4 = new Point(scale*(cols/1.5), scale*(rows*7/12));
+	Point P_5 = new Point(scale*(cols*4/9), scale*(rows*3/4));
+	Point P_6 = new Point(scale*(cols*5/9), scale*(rows*3/4));

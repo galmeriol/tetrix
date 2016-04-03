@@ -1,9 +1,13 @@
+/*
+ * 
+ */
 package capture;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -22,185 +26,220 @@ import org.opencv.core.Mat;
 import org.opencv.ml.*;
 import org.opencv.features2d.*;
 
+
 public class FrameHelper {
 
-    int ismyframeuse = 0;
-    int palm_radius;
+    private Context ctx = new Context();
 
-    CascadeClassifier face_cascade = new CascadeClassifier( 
-                                                           System.getProperty("user.dir") + "/src/main/java/haarcascade_frontalface_default.xml");
-    Mat mybackground = new Mat();
-    float radius_palm_center = 0.0f;
-    /*
-    CvSeq fingerseq = new CvSeq();
 
-    CvBox2D contour_center = new CvBox2D();*/
-    List<Point> fingerseq = new ArrayList<Point>();
-    List<Point> finger_dft = new ArrayList<Point>();
-    List<Point> palm = new ArrayList<Point>();
-    Point palm_center = new Point();
-    Point p = new Point();
-    MatOfInt4[] defects;
-    MatOfInt[] hull;
-    Point armcenter = new Point();
-    RotatedRect contour_center;
-    List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
-    Rect[] faces;
-    
-    
-    Rect facedetect(Mat frame, CascadeClassifier facecad)
+    //TODO bunlar context içine gidecek.
+
+    int SAMPLE_NUM = 7;
+
+    Mat tmpMat = new Mat();
+    Mat binMat = new Mat();
+    Mat rgbaMat = new Mat();
+    Mat rgbMat = new Mat();
+
+    Mat interMat = new Mat();
+
+    Rect boundingRect = new Rect();
+
+    Mat[] sampleMats = new Mat[SAMPLE_NUM];
+
+    private double[][] cLower = new double[SAMPLE_NUM][3];
+    private double[][] cUpper = new double[SAMPLE_NUM][3];
+    private double[][] cBackLower = new double[SAMPLE_NUM][3];
+    private double[][] cBackUpper = new double[SAMPLE_NUM][3];
+
+    private Scalar lowerBound = new Scalar(0, 0, 0);
+    private Scalar upperBound = new Scalar(0, 0, 0);
+
+
+    public List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+    public int cMaxId = -1;
+    public Mat hie = new Mat();
+    public List<MatOfPoint> hullP = new ArrayList<MatOfPoint>();
+    public MatOfInt hullI = new MatOfInt();
+    public MatOfInt4 defects = new MatOfInt4();
+
+    public ArrayList<Integer> defectIdAfter = new ArrayList<Integer>();
+
+
+    public List<Point> fingerTips = new ArrayList<Point>();
+    public List<Point> fingerTipsOrder = new ArrayList<Point>();
+    //public Map<Double, Point> fingerTipsOrdered = new TreeMap<Double, Point>();
+
+    public MatOfPoint2f defectMat = new MatOfPoint2f();
+    public List<Point> defectPoints = new ArrayList<Point>();
+    //public Map<Double, Integer> defectPointsOrdered = new TreeMap<Double, Integer>();
+
+    public Point palmCenter = new Point();
+    public MatOfPoint2f hullCurP = new MatOfPoint2f();
+    public MatOfPoint2f approxHull = new MatOfPoint2f();
+
+    public MatOfPoint2f approxContour = new MatOfPoint2f();
+
+    public MatOfPoint palmDefects = new MatOfPoint();
+
+    public Point momentCenter = new Point();
+    public double momentTiltAngle;
+
+    public Point inCircle = new Point();
+
+    public double inCircleRadius;
+
+    public List<Double> features = new ArrayList<Double>();
+
+    private boolean isHand = false;
+
+    private float[] palmCircleRadius = {0};
+
+
+    public Context getCtx() {
+	return ctx;
+    }
+
+    public void setCtx(Context ctx) {
+	this.ctx = ctx;
+    }
+
+    void thresholdFrame(){
+	Mat frame = ctx.getMainFrame().clone();
+	Mat thr = ctx.getFrameThr();
+
+	Imgproc.cvtColor(frame, ctx.getFrameThr(), Imgproc.COLOR_BGR2GRAY);
+
+	int threshold = 0;
+	if(ctx.getTetrixBag().containsKey("threshold"))
+	    threshold = Integer.parseInt(ctx.getTetrixBag().get("threshold").toString());
+	else{
+	    threshold = 80;
+	}
+	System.out.println("threshold : " + threshold);
+	Imgproc.threshold(thr, thr, threshold, 255, Imgproc.THRESH_BINARY);
+
+	ctx.setFrameThr(thr);
+
+    }
+
+    void facedetect()
     {
 	//System.out.println("info: face detection started");
-	Mat frameGray = new Mat();
-	
-	Rect p = new Rect();
-	
+	Mat frame = ctx.getMainFrame().clone();
+	Mat thr = ctx.getFrameThr();
+	Rect p = ctx.getFaceregion();
 	p.height = 0;
 	p.width = 0;
 	p.x = 0;
 	int maxarea = -1;
-	int maxareai = -1;
 	p.y = 0;
 
-	//Imgproc.cvtColor(frame, frameGray, Imgproc.COLOR_BGR2GRAY);
+	//double morph_size = 0.5;
 
-	//Imgproc.equalizeHist(frameGray, frameGray); 
+	//Mat element = Imgproc.getStructuringElement( Imgproc.MORPH_RECT, new Size( 2*morph_size + 1, 2*morph_size+1 ), new Point( morph_size, morph_size ) );
+
+	//Imgproc.blur(ctx.getMainFrame(), ctx.getFrameHSV(), new Size(3, 3));
+
+	/*Imgproc.GaussianBlur(ctx.getMainFrame(), ctx.getFrameHSV(), new Size(11,11), 0, 0);
+	Imgproc.GaussianBlur(ctx.getMainFrame(), ctx.getFrameHSV(), new Size(11,11), 0, 0);
+	Imgproc.medianBlur(ctx.getFrameHSV(), ctx.getFrameHSV(), 3);
+	Imgproc.medianBlur(ctx.getFrameHSV(), ctx.getFrameHSV(), 3);*/
+
+	Imgproc.cvtColor(ctx.getMainFrame(), ctx.getFrameHSV(), Imgproc.COLOR_BGR2HSV);
+
+	thresholdFrame();
+
+	/*Core.inRange(ctx.getFrameHSV(), 
+	             new Scalar(threshold - 50 >= 0 ? threshold - 50 : 0, 
+	                                            threshold, 
+	                                            threshold + 30 > 255 ? 255 : threshold + 50, 255), 
+	                                            new Scalar(threshold + 100, 
+	                                                       threshold + 150 > 255 ? 255 : threshold + 100 , 
+	                                                                             threshold + 180 > 255 ? 255 : threshold + 150, 255), 
+	                                                                             ctx.getFrameThr());
+	 */
+	//Imgproc.equalizeHist(ctx.getFrameThr(), ctx.getFrameThr());
+
+
+	//Imgproc.morphologyEx(ctx.getFrameHSV(), ctx.getFrameHSV(), Imgproc.MORPH_OPEN, element, new Point(-1, -1), 1);
+
+	if (ctx.getFaceSize() == 0)
+	{
+	    int height = ctx.getFrameThr().rows();
+	    if (Math.round(height * 0.2f) > 0)
+	    {
+		ctx.setFaceSize(Math.round(height * 0.4f));
+	    }
+	}
 
 	MatOfRect faces_ = new MatOfRect();
-	facecad.detectMultiScale(frameGray, 
-	                         faces_/*, 
-	                         1.1, 
-	                         2, 
-	                         0 | Objdetect.CASCADE_FIND_BIGGEST_OBJECT, 
-	                         new Size(30, 30), 
-	                         new Size(frame.width(), frame.height())*/);
-	faces = faces_.toArray();
-//	System.out.println(faces.length + " adet yüz bulundu.");
-	for (Rect face: faces) //consider the first face
-	{
-	    int x = (int)face.x;
-	    int halfWidth = (int)(face.width*0.5);
-
-	    int y = (int)face.y;
-	    int halfHeight = (int)(face.height*0.5);
-	    Point center = new Point(x + halfWidth, y + halfHeight);
-
-
+	ctx.getFace_cascade().detectMultiScale(ctx.getFrameThr(), 
+	                                       faces_, 
+	                                       1.3, 
+	                                       2, 
+	                                       0 | Objdetect.CASCADE_SCALE_IMAGE, 
+	                                       new Size(ctx.getFaceSize(), ctx.getFaceSize()), 
+	                                       new Size());
+	ctx.setFaces(faces_.toArray());
+	//System.out.println(faces.length + " adet yüz bulundu.");
+	for (Rect face: ctx.getFaces()) {
 	    if(face.area()>maxarea){
 		p = face;
 		maxarea = (int)face.area();
 	    }
-	    Imgproc.ellipse(frame, 
-	                    center, 
-	                    new Size((int)(face.width*0.5), (int)(face.height*0.5)), 
-	                    0.0, 
-	                    0.0, 
-	                    360.0, 
-	                    new Scalar(0, 255, 255, 0),
-	                    4, 
-	                    8, 
-	                    0);
-	   // System.out.println("elips çizildi");
 	}
-	//System.out.println("info: face detection succeeded");
-	return p;
+	//Mat mask = Mat.zeros(frame.size(), CvType.CV_8UC3);
+
+	Mat ROI = frame.submat(p);
+
+	if(ROI.width() > 0){
+	    frame.submat(p).setTo(new Scalar(0, 0, 0));
+	    thr.submat(p).setTo(new Scalar(0, 0, 0));
+	}
+
+	Imgproc.rectangle(frame,
+	                  p.tl(),
+	                  p.br(),
+	                  new Scalar(0, 0, 0),
+	                  3);
+
+	ctx.setFrameThr(thr);
+	ctx.setMainFrame(frame);
     }
 
-
-    void SkinColorModel(Mat frame, Rect faceregion, int ymax, int ymin, int crmax, int crmin, int cbmax, int cbmin)
-    {
-	//System.out.println("info: skin color modeling started");
-	int y, cb, cr,r,b,g,gray;
-	Mat p = new Mat();
-	Imgproc.cvtColor(frame, p, Imgproc.COLOR_BGR2YCrCb);
-	crmax = -1;
-	crmin = 295;
-	cbmax = -1;
-	cbmin = 295;
-	ymax = 295;
-	ymin = -1;
-	if (faceregion.area() > 5)
-	{
-
-	    for (int i = faceregion.x; i < faceregion.x + faceregion.width && i < frame.width(); i++)
-	    {
-		for (int j = faceregion.y; j < faceregion.y + faceregion.height && j<frame.height(); j++)
-		{
-		    double[] frameScalar = new double[3];
-		    double[] pScalar = new double[3];
-
-		    frameScalar = frame.get(j, i);
-		    pScalar = p.get(j, i);
-
-		    b = (int)frameScalar[0];
-		    g = (int)frameScalar[1];
-		    r = (int)frameScalar[2];
-
-		    y = (int)pScalar[0];
-		    cr = (int)pScalar[1];
-		    cb = (int)pScalar[2];
-
-		    gray = (int)(0.2989 * r + 0.5870 * g + 0.1140 * b);
-		    if (gray<200 && gray>40 && r>g && r>b)
-		    {
-			ymax = (y > ymax) ? y : ymax;
-			ymin = (y < ymin) ? y : ymin;
-			crmax = (cr > crmax) ? cr : crmax;
-			crmin = (cr < crmin) ? cr : crmin;
-			cbmax = (cb > cbmax) ? cb : cbmax;
-			cbmin = (cb < cbmin) ? cb : cbmin;
-		    }
-		}
-	    }
-	    /**ymin = *ymin - 10;
-	     *ymax = *ymax + 10;
-	     *crmin = *crmin - 10;
-	     *crmax = *crmax + 10;
-	     *cbmin = *cbmin - 10;
-	     *cbmax = *cbmax + 10;*/
-	}
-	else
-	{
-	    ymax = 255;//(*ymax>163) ? 163 : *ymax;
-	    ymin = 0;// (*ymin < 54) ? 54 : *ymin;
-	    crmax = 173;// (*crmax > 173) ? 173 : *crmax;
-	    crmin = 133;// (*crmin < 133) ? 133 : *crmin;
-	    cbmax = 127;// (*cbmax > 127) ? 127 : *cbmax;
-	    cbmin = 77;// (*cbmin < 77) ? 77 : *cbmin;
-	}
-	/**crmax = (*crmax > 173) ? 173 : *crmax;
-	 *crmin = (*crmin < 133) ? 133 : *crmin;
-	 *cbmax = (*cbmax > 127) ? 127 : *cbmax;
-	 *cbmin = (*cbmin < 77) ? 77 : *cbmin;*/
-
-	//System.out.println("info: skin color modeling succeeded");
-    }
-
-    void Get_hull(Mat frame)
+    void Get_hull()
     {
 	//System.out.println("info: hull fitting started");
-	defects = new MatOfInt4[contours.size()];
-	hull = new MatOfInt[contours.size()];
-	fingerseq.clear();
-	for (int i = 0; i < contours.size(); i++) {
-	    defects[i] = new MatOfInt4();
-	    hull[i] = new MatOfInt();
 
-	    MatOfPoint contour = contours.get(i);
-	    
-	    Imgproc.convexHull(contour, hull[i], false);
-	    Imgproc.convexityDefects(contour, hull[i], defects[i]); 
-	    fingerseq.clear();
-	    int[] intlist = hull[i].toArray();
+
+
+	ctx.setDefects(new MatOfInt4[ctx.getContours().size()]);
+	ctx.setHull(new MatOfInt[ctx.getContours().size()]);
+	ctx.getFingerseq().clear();
+
+
+	for (int i = 0; i < ctx.getContours().size(); i++) {
+
+	    ctx.getDefects()[i] = new MatOfInt4();
+	    ctx.getHull()[i] = new MatOfInt();
+
+	    MatOfPoint contour = ctx.getContours().get(i);
+
+	    Imgproc.convexHull(contour, ctx.getHull()[i], false);
+	    Imgproc.convexityDefects(contour, ctx.getHull()[i], ctx.getDefects()[i]);
+
+	    ctx.getFingerseq().clear();
+	    int[] intlist = ctx.getHull()[i].toArray();
 	    for(int j=0;j < intlist.length; j++)
-		fingerseq.add(contour.toList().get(hull[i].toList().get(j)));
+		ctx.getFingerseq().add(contour.toList().get(ctx.getHull()[i].toList().get(j)));
 
 	}
-	palm.clear();
-	for (int i = 0; i< defects.length; i+=4)
+	ctx.getPalm().clear();
+	for (int i = 0; i< ctx.getDefects().length; i+=4)
 	{
-	    Point contour[] = contours.get(i).toArray();
-	    List<Integer> df = defects[i].toList();
+	    Point contour[] = ctx.getContours().get(i).toArray();
+	    List<Integer> df = ctx.getDefects()[i].toList();
 
 	    for (int j = 0; j < df.size(); j = j+4) {
 
@@ -209,345 +248,745 @@ public class FrameHelper {
 
 		if (depth_f > 10)
 		{
-		    p.x = dept_p.x;
-		    p.y = dept_p.y;
-		    Imgproc.circle(frame, p, 15, new Scalar(255, 0, 0), -1, 8, 0);
-		    palm.add(dept_p);
+		    ctx.getP().x = dept_p.x;
+		    ctx.getP().y = dept_p.y;
+		    Imgproc.circle(ctx.getMainFrame(), ctx.getP(), 15, new Scalar(255, 0, 0), -1, 8, 0);
+		    ctx.getPalm().add(dept_p);
 		}
 	    }
-	    
+
 	}
 
 	//System.out.println("info: hull fitting succeeded");
 
     }
-    int Get_Palm_Center(Mat frame)
+
+    void HandDetection()
     {
-	//System.out.println("info: getting palm center point");
-	Point distemp = new Point();
-	int lengthtemp;
-	int mydft = 0;
-	palm_center.x = armcenter.x;
-	palm_center.y = armcenter.y;
-	if (palm.size() > 0)
-	{
+	ctx.getContours().clear();
 
-	    palm_center.x = 0;
-	    palm_center.y = 0;
-	    for (int i = 0; i < palm.size(); i++)
-	    {
-		Point temp = palm.get(i);
-		palm_center.x =palm_center.x + temp.x;
-		palm_center.y =palm_center.y + temp.y;
+	thresholdFrame();
+
+	Mat thr = ctx.getFrameThr().clone();
+	Mat frame = ctx.getMainFrame().clone();
+
+	Mat hierarchy = new Mat();
+	int max_contour_idx = 0;
+	Imgproc.findContours(thr, ctx.getContours(), hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+	double max_area = 0;
+
+
+	for (int i = 0; i < ctx.getContours().size();i++){
+	    MatOfPoint tmp = ctx.getContours().get(i);
+
+	    double area = Math.abs(Imgproc.contourArea(tmp, false));
+	    if (area > max_area) {
+		max_area = area;
+		max_contour_idx = i;
 	    }
-
-	    palm_center.x = (int)(palm_center.x / palm.size());
-	    palm_center.y = (int)(palm_center.y / palm.size());
-	    palm_radius = 0;
-
-	    for (int i = 0; i < palm.size(); i++)
-	    {
-		Point temp = palm.get(i);
-		distemp.x = temp.x - palm_center.x;
-		distemp.y = temp.y - palm_center.y;
-		lengthtemp = (int)Math.sqrt((distemp.x*distemp.x) + (distemp.y*distemp.y));
-		palm_radius += lengthtemp;
-	    }
-
-	    palm_radius = (int)(palm_radius / palm.size());
-	    if (palm_center.y > armcenter.y) {
-		palm_center.x = armcenter.x;
-		palm_center.y = armcenter.y;
-	    }
-	    if (palm.size() < 3) palm_radius = 0;
-	    Imgproc.circle(frame, palm_center, 5, new Scalar(0, 255, 0), -1, 8, 0);
-	    Imgproc.ellipse(frame, palm_center, new Size(palm_radius, palm_radius), 0, 0, 360, new Scalar(0.0, 255.0, 0.0, 0.0), 4, 8, 0);
-
-	    finger_dft.clear();
-
-	    for (int i = 0; i < palm.size(); i++)
-	    {
-		Point temp = palm.get(i);
-		p.x = temp.x;
-		p.y = temp.y;
-		if (palm_center.x - palm_radius*1.9<p.x && palm_center.x + palm_radius*1.9>p.x &&palm_center.y - palm_radius*1.5<p.y &&palm_center.y + palm_radius*0.8>p.y)
-		{
-		    mydft++;
-		    finger_dft.add(p);
-		    Imgproc.circle(frame, p, 5, new Scalar(0, 255, 255), -1, 8, 0);
-		}
-	    }
-
 	}
-	//System.out.println("info: palm center point calculated");
-	return mydft;
+	ctx.setBiggestContour(max_contour_idx);
 
-    }
+	Imgproc.drawContours(frame, ctx.getContours(), ctx.getBiggestContour(), new Scalar(250, 250, 250), 3);
 
-    Mat HandDetection(Mat frame, Rect faceregion, int ymax, int ymin, int crmax, int crmin, int cbmax, int cbmin)
-    {
-	//System.out.println("info: hand detection started");
-	Size sz = frame.size();
+	ctx.setMainFrame(frame);
+	ctx.setFrameThr(thr);
+	/*
 
-
-	MatOfPoint maxrecord = null;
-	long max_contour_size=-1;
-
-	//System.out.println(sz.width + "  " + sz.height);
-	Mat mask = new Mat(new Size(sz.width, sz.height), CvType.CV_8UC1);
-
-
-	if (faceregion.area() > 5)
-	{
-	    if (faceregion.y > faceregion.height / 4)
-	    {
-		faceregion.y = faceregion.y - (faceregion.height / 4);
-		faceregion.height = faceregion.height + (faceregion.height / 4);
-	    }
-	    else
-	    {
-		faceregion.height = faceregion.height + faceregion.y;
-		faceregion.y = 0;
-
-	    }
-	    //avoid noise for T-shirt
-	    faceregion.height = faceregion.height + (faceregion.height / 2);
-	}
-
-	int y,cr,cb;
-	//Turn to YCrCb
-	Mat p = new Mat(); Mat b = new Mat();
-
-	Imgproc.cvtColor(frame, p, Imgproc.COLOR_BGR2YCrCb);
-
-	//Turn to Gray
-	//cvtColor(frame, gray, CV_BGR2GRAY);
-	//Imgproc.threshold(p, mask, 50, 150, 0);
-
-	for(int i = 0;i < frame.cols(); i++)
-	    for (int j = 0;j < frame.rows(); j++)
-	    {
-		double[] vals = p.get(j, i);
-		y = (int)vals[0];
-		cr = (int)vals[1];
-		cb = (int)vals[2];
-
-		if (y>ymin && y<ymax && cr<crmax && cr>crmin && cb<cbmax && cb>cbmin) {
-		    mask = fill(mask, j, i, 255);
-		}
-		else {
-		    mask = fill(mask, j, i, 0);
-		}
-
-		if (mybackground != null)
+	Runnable drawContours = new Runnable() {
+	    Mat frame = new Mat();
+	    Mat hierarchy = new Mat();
+	    public void run() {
+		if (hierarchy.size().height > 0 && hierarchy.size().width > 0)
 		{
-		    //mybackground = cvCreateImage(sz, image.depth(), image.arrayChannels());
-		    //b = new Mat(mybackground);
-		    double[] valims = frame.get(j, i);
-		    double[] valbacks = mybackground.get(j, i);
-		    if (
-			    Math.abs(
-			             (int)valims[0] - 
-			             (int)valbacks[0])<10
-			             && 
-			             Math.abs(
-			                      (int)valims[1] - 
-			                      (int)valbacks[1])<10 
-			                      && 
-			                      Math.abs(
-			                               (int)valims[2] - 
-			                               (int)valbacks[2])<10
-			    )
+		    for (int idx = 0; idx >= 0; idx = (int) hierarchy.get(0, idx)[0])
+		    {
 
-			mask = fill(mask, j, i, 0);
-		}
-
-	    }
-
-	for (int i = 0; i < faces.length; i++){
-	    for (int j = faces[i].x; j < faces[i].x + faces[i].width - 1; j++){
-		for (int k = faces[i].y; k < faces[i].y + faces[i].height - 1; k++){
-		    try{
-			mask = fill(mask, k, j, 0);
-		    }
-		    catch(RuntimeException ex){
-			System.out.println(j + "  " + k);
 		    }
 		}
 	    }
-	}
-	//mask = new Mat(maskmat);
-	Imgproc.erode(mask, mask, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2,2))); //ERODE first then DILATE to eliminate the noises.
-	Imgproc.dilate(mask, mask, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2,2))); //ERODE first then DILATE to eliminate the noises.
-	//Imgproc.morphologyEx(mask, mask, null, null, Imgproc.MORPH_OPEN, 1);
-	//mask.convertTo(mask, CvType.CV_8UC1);
-	Imgproc.findContours(mask, contours, new Mat(new Size(150, 100), 0),Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
 
-	for(int z = 1; z < contours.size(); z++)
-	{
-	    Imgproc.drawContours(mask, contours, z, new Scalar(100.0, 50.0, 0.0, 0.0));
-	}
-
-	if (contours != null)
-	{
-	    for(MatOfPoint point : contours){
-		contour_center = Imgproc.minAreaRect(new MatOfPoint2f(point.toArray()));
-		armcenter.x = contour_center.center.x;
-		armcenter.y = contour_center.center.y;
-		Imgproc.circle(frame, armcenter,10, new Scalar(255,255,255),-1, 8, 0);
-		Get_hull(frame);
+	    public Runnable init(Mat frame, Mat hierarchy){
+		this.frame = frame;
+		this.hierarchy = hierarchy;
+		return this;
 	    }
-
-
-	}
-	//System.out.println("info: hand detection succeeded");
-	return frame;
+	}.init(ctx.getMainFrame(), hierarchy);
+	 */
     }
 
-    Mat fill(Mat mat, int i, int j, double val){
-	double[] vals = new double[mat.channels()];
-	for(int z = 0; z < mat.channels();z++)
-	    vals[z] = val;
-	mat.put(i, j, vals);
-	return mat;
-    }
-
-    double get_cos_value(Point b, Point c)//palm_center - base point
-    {
-	Point a = new Point();
-	a.x = palm_center.x;
-	a.y = palm_center.y;
-	double vec1x = b.x - a.x;
-	double vec1y = b.y - a.y;
-	double vec2x = c.x - a.x;
-	double vec2y = c.y - a.y;
-	return ((vec1x*vec2x + vec1y*vec2y)) / (Math.sqrt(((vec1x*vec1x) + (vec1y*vec1y)))*Math.sqrt(((vec2x*vec2x) + (vec2y*vec2y))));
-    }
-    
     Comparator<Point> point_compare(){
 	return new Comparator<Point>() {
-	    
+
 	    public int compare(Point o1, Point o2) {
-		if(o1 != null && o2 != null)
-		    return (int)(o1.x - o2.x);
+		if(o1 != null && o2 != null){
+		    if(o1.x > o2.x) 
+			return 1;
+		    else if(o1.x < o2.x) 
+			return -1;
+		    else
+			return 0;
+		}
 		else
-		    return Integer.MAX_VALUE;
+		    return 0;
 	    }
 	}; 
     }
-    
-    int Get_fingertip(Mat frame) //number of fingertips
-    {
-	Point[] gaps = new Point[150];
-	Point[] possible_tips = new Point[200];
 
-	Point mypoint_temp = new Point(0.0, 0.0);
-	
-	Point tmp_cvpnt = new Point();
-	int cnt_finger = 0;
 
-	if (palm_radius == 0) return 0;
-	
-	for (int i = 0; i < finger_dft.size(); i++)
+    public List<Mat> notify(Mat frame, HashMap params){
+	System.out.println("notified");
+	this.ctx.getTetrixBag().clear();
+	this.ctx.getTetrixBag().putAll(params);
+	return mygesturedetect();
+    }
+
+    void subtractBackground(){
+	BackgroundSubtractorMOG2 subtractor = Video.createBackgroundSubtractorMOG2(3000, 10, true);
+
+
+	Mat element = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(9, 9), new Point(4, 4));  
+
+
+	Imgproc.blur(ctx.getMainFrame().submat(ctx.getBackgroundSample()), ctx.getFrameSubtracted(), new Size(3, 3));
+
+
+	subtractor.apply(ctx.getMainFrame(), ctx.getFrameSubtracted());
+
+
+
+	subtractor.getBackgroundImage(ctx.getFrameBackground());
+
+
+	Imgproc.morphologyEx(ctx.getFrameSubtracted(), ctx.getFrameSubtracted(), Imgproc.MORPH_DILATE, element);  
+
+	Imgproc.threshold(ctx.getFrameSubtracted(), ctx.getFrameSubtracted(), 128, 255, Imgproc.THRESH_BINARY);
+
+    }
+
+    void createHandGuide(Mat im){
+
+	int cols = im.cols();
+	int rows = im.rows();
+
+	double scale = 0.7;
+
+	ctx.setSquareLen(scale*(rows/20));
+
+
+	Point P_0 = new Point(scale*(cols/2), scale*(rows/4));
+	Point P_1 = new Point(scale*(cols*5/12), scale*(rows*5/12));
+	Point P_2 = new Point(scale*(cols*7/12), scale*(rows*5/12));
+	Point P_3 = new Point(scale*(cols/2), scale*(rows*7/12));
+	Point P_4 = new Point(scale*(cols/1.5), scale*(rows*7/12));
+	Point P_5 = new Point(scale*(cols*4/9), scale*(rows*3/4));
+	Point P_6 = new Point(scale*(cols*5/9), scale*(rows*3/4));
+
+	List<Point> listOfPoints = new ArrayList<Point>();
+	listOfPoints.add(P_0);listOfPoints.add(P_1);listOfPoints.add(P_2);listOfPoints.add(P_3);
+	listOfPoints.add(P_4);listOfPoints.add(P_5);listOfPoints.add(P_6);
+
+	for (int i = 0; i < 7; i++)
 	{
-	    gaps[i] = new Point();
-	    Point temp = finger_dft.get(i);
-	    gaps[i].x = temp.x;
-	    gaps[i].y = temp.y;
+	    Point P_INIT = listOfPoints.get(i);
+
+	    ctx.getGuideRects().add(new Rect(P_INIT,
+	                                     new Point(P_INIT.x + ctx.getSquareLen() , P_INIT.y + ctx.getSquareLen())));
 	}
-	gaps[finger_dft.size()] = new Point();
-	gaps[finger_dft.size() + 1] = new Point();
-	gaps[finger_dft.size() + 2] = new Point();
-	
-	
-	gaps[finger_dft.size()].x = -1;
-	gaps[finger_dft.size()].y = 0;//lower bound
-	gaps[finger_dft.size() + 1].x = 30000;
-	gaps[finger_dft.size() + 1].y = 0;
-	gaps[finger_dft.size()+2].x = 30001;
-	gaps[finger_dft.size() + 2].y = 30001;//higher bound
-	Arrays.sort(gaps, point_compare());
-	//std::qsort(gaps, finger_dft.total() + 3, sizeof(struct mypoint), qcompare1);
-	for (int i = 0; i < fingerseq.size(); i++)
-	{
-	    possible_tips[i] = new Point();
-	    Point temp = fingerseq.get(i);
-	    possible_tips[i].x = temp.x;
-	    possible_tips[i].y = temp.y;
+    }
+
+    void handModeling() {
+
+	if(ctx.getGuideRects().size() < 1)
+	    createHandGuide(ctx.getFrameForHandModeling());
+
+	for (Rect rect : ctx.getGuideRects()) {
+	    Imgproc.rectangle(ctx.getFrameForHandModeling(), rect.tl(), rect.br(), new Scalar(0, 200, 0), 2);
 	}
-	Arrays.sort(possible_tips, point_compare());
-	//std::qsort(possible_tips, fingerseq->total, sizeof(struct mypoint), qcompare1);
-	mypoint_temp.x = -1;
-	mypoint_temp.y = -1;
-	tmp_cvpnt.x = palm_center.x;
-	tmp_cvpnt.y = 999;
-	for (int i = 0; i < fingerseq.size(); i++)
+
+	Imgproc.putText(ctx.getFrameForHandModeling(), "Elinizi noktalari kapatacak sekilde yerlestirin...",
+	                new Point(30, 30), Core.FONT_HERSHEY_COMPLEX_SMALL, 0.8, new Scalar(200, 200, 250));
+
+
+	int COLOR_SPACE = Imgproc.COLOR_RGB2Lab;
+
+	Mat frameForColorModeling = new Mat();
+
+	Imgproc.cvtColor(ctx.getFrameForHandModeling(), frameForColorModeling , COLOR_SPACE);
+
+	ctx.setAvgColor(new double[7][3]);
+	for (int i = 0; i < 7; i++)
 	{
-	    //p.x = possible_tips[i].x;
-	    //p.y = possible_tips[i].y;
-	    //cvCircle(&frame, p, 5, CV_RGB(100, 0, 200), -1, CV_AA, 0);
-	    /*System.out.println(get_cos_value(tmp_cvpnt, possible_tips[i]) < 0.98);
-	    System.out.println(possible_tips[i].y<palm_center.y + 0.8*palm_radius);
-	    System.out.println(((palm_center.x - possible_tips[i].x)*(palm_center.x - possible_tips[i].x)) + 
-	                       ((palm_center.y - possible_tips[i].y)*(palm_center.y - possible_tips[i].y))>palm_radius*palm_radius*3.5);
-	    */
-	    if (/*(possible_tips[i].x>gaps[pnt].x || gaps[pnt].x==30000) &&*/get_cos_value(tmp_cvpnt, possible_tips[i])
-		    <0.98 &&possible_tips[i].y<palm_center.y + 0.8*palm_radius /*&& 
-		    ((palm_center.x - possible_tips[i].x)*(palm_center.x - possible_tips[i].x)) + 
-		    ((palm_center.y - possible_tips[i].y)*(palm_center.y - possible_tips[i].y))>palm_radius*palm_radius*3.5*/)
+	    for (int j = 0; j < 3; j++)
 	    {
-		cnt_finger++;
-		tmp_cvpnt.x = possible_tips[i].x;
-		tmp_cvpnt.y = possible_tips[i].y;
-		p.x = possible_tips[i].x;
-		p.y = possible_tips[i].y;
-		//checked_tips.push_back(mypoint_temp);
-		Imgproc.circle(frame, p, 5, new Scalar(0,0,0), -1, 8, 0);
-		//while (gaps[++pnt].x < possible_tips[i].x);
+		try{
+		    ctx.getAvgColor()[i][j] = (
+			    frameForColorModeling.get(
+			                              (int)(ctx.getGuideRects().get(i).y+(ctx.getSquareLen()/2)), 
+			                              (int)(ctx.getGuideRects().get(i).x+(ctx.getSquareLen()/2))))[j];
+		}
+		catch(Exception ex){
+		    System.out.println(i + ". rect, " + j + ". color");
+		}
 	    }
 	}
 
-	/*for (int i = 0; i < checked_tips.size(); i++)
-        	{
-        		if (get_cos_value(mypoint_temp, checked_tips[i]) < 0.8)
-        		{
-        			mypoint_temp.x = checked_tips[i].x;
-        			mypoint_temp.y = checked_tips[i].y;
-        			p.x = mypoint_temp.x;
-        			p.y = mypoint_temp.y;
-        			cvCircle(&frame, p, 5, CV_RGB(0, 0, 0), -1, CV_AA, 0);
-        			cnt_finger++;
-        		}
-        	}*/
-	//int i=pnt;
-	return cnt_finger;
+	for (int i = 0; i < 7; i++)
+	{
+	    for (int j = 0; j < 3; j++)
+	    {
+		System.out.println(ctx.getAvgColor()[i][j]);
+	    }
+	}
+
     }
 
-    Mat mygesturedetect(Mat frame) //-1 undetected, 0-scissor, 1-rock, 2-paper
+    void createBackgroundGuide(Mat im){
+	int cols = im.cols();
+	int rows = im.rows();
+
+	double scale = 0.7;
+
+	ctx.setSquareLen(scale*(rows/20));
+
+
+	Point P_0 = new Point(scale*(cols/6), scale*(rows/3));
+	Point P_1 = new Point(scale*(cols*6), scale*(rows*2/3));
+	Point P_2 = new Point(scale*(cols/2), scale*(rows/6));
+	Point P_3 = new Point(scale*(cols/2), scale*(rows/2));
+	Point P_4 = new Point(scale*(cols/2), scale*(rows*5/6));
+	Point P_5 = new Point(scale*(cols*5/6), scale*(rows/3));
+	Point P_6 = new Point(scale*(cols*5/6), scale*(rows*2/3));
+
+	List<Point> listOfPoints = new ArrayList<Point>();
+	listOfPoints.add(P_0);listOfPoints.add(P_1);listOfPoints.add(P_2);listOfPoints.add(P_3);
+	listOfPoints.add(P_4);listOfPoints.add(P_5);listOfPoints.add(P_6);
+
+	for (int i = 0; i < 7; i++)
+	{
+	    Point P_INIT = listOfPoints.get(i);
+
+	    ctx.getBackGuideRect().add(new Rect(P_INIT,
+	                                        new Point(P_INIT.x + ctx.getSquareLen() , P_INIT.y + ctx.getSquareLen())));
+	}
+    }
+
+    void backgroundModeling(){
+
+	if(ctx.getBackGuideRect().size() < 1)
+	    createBackgroundGuide(ctx.getFrameForBackModeling());
+
+	for (Rect rect : ctx.getBackGuideRect()) {
+	    Imgproc.rectangle(ctx.getFrameForBackModeling(), rect.tl(), rect.br(), new Scalar(0, 200, 0), 2);
+	}
+
+	Imgproc.putText(ctx.getFrameForBackModeling(), "Elinizi noktalari kapatacak sekilde yerlestirin...",
+	                new Point(30, 30), Core.FONT_HERSHEY_COMPLEX_SMALL, 0.8, new Scalar(200, 200, 250));
+
+
+	int COLOR_SPACE = Imgproc.COLOR_RGB2Lab;
+
+	Mat frameForColorModeling = new Mat();
+
+	Imgproc.cvtColor(ctx.getFrameForBackModeling(), frameForColorModeling , COLOR_SPACE);
+
+	ctx.setAvgColor(new double[7][3]);
+	for (int i = 0; i < 7; i++)
+	{
+	    for (int j = 0; j < 3; j++)
+	    {
+		try{
+		    ctx.getAvgColor()[i][j] = (
+			    frameForColorModeling.get(
+			                              (int)(ctx.getBackGuideRect().get(i).y+(ctx.getSquareLen()/2)), 
+			                              (int)(ctx.getBackGuideRect().get(i).x+(ctx.getSquareLen()/2))))[j];
+		}
+		catch(Exception ex){
+		    System.out.println(i + ". rect, " + j + ". color");
+		}
+	    }
+	}
+
+	for (int i = 0; i < 7; i++)
+	{
+	    for (int j = 0; j < 3; j++)
+	    {
+		System.out.println(ctx.getAvgColor()[i][j]);
+	    }
+	}
+    }
+
+
+    Rect makeBoundingBox(Mat img)
     {
-	String gesture = "";
-	mybackground = frame;
-	Rect faceregion;
-	int rmax = 0, rmin = 0, gmax = 0, gmin = 0, bmax = 0, bmin = 0;
-	faceregion = facedetect(frame, face_cascade);
-	//faceregion = handdetect_haar(frame, fist_cascade);
-	SkinColorModel(frame, faceregion, rmax, rmin, gmax, gmin, bmax, bmin);
-	Mat p = HandDetection(frame, faceregion, rmax, rmin, gmax, gmin, bmax, bmin);
-	int dfts = Get_Palm_Center(frame);
-	int tips=Get_fingertip(frame);
+	ctx.getContours().clear();
+	Imgproc.findContours(img, ctx.getContours(), new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
 
-	int flag = (contours == null) ? 1 : 0;
-	if (flag == 1) gesture = "ANLAMSIZ";
-	System.out.println("Tip sayısı: " + tips + " - " + "dfts: " + dfts);
-	if (tips >= 4 && dfts >= 3 && tips<=6&&dfts<=5) gesture = "KAĞIT"; //paper
-	if (tips ==0 && dfts>=2 && dfts<=5) gesture = "KAĞIT";//paper, special case 1 (open palm with all fingers together)
-	if (tips == 0) gesture = "TAŞ";//rock
-	if (tips >= 1 && tips <= 2 && dfts >= 2 && dfts <= 4) gesture = "MAKAS";//scissors
-	if (tips == 3 && dfts >= 2 && dfts <= 3) gesture = "MAKAS";//scissors
-	if (tips == 3 && dfts >= 4 && dfts <= 5) gesture = "KAĞIT";//paper
-	System.out.println("Gesture: " + gesture);
-	return p;
+	if (ctx.getBiggestContour() > -1) {
+
+	    boundingRect = Imgproc.boundingRect(ctx.getContours().get(ctx.getBiggestContour()));
+	}
+
+	return boundingRect;
     }
 
 
+    void cropBinImg(Mat imgIn, Mat imgOut)
+    {
+	Mat binIm = new Mat();
+	imgIn.copyTo(binIm);
+
+	Rect boxRect = makeBoundingBox(binIm);
+	Rect finalRect = null;
+
+	if (boxRect!=null) {
+	    Mat roi = new Mat(imgIn, boxRect);
+	    int armMargin = 2;
+
+	    Point tl = boxRect.tl();
+	    Point br = boxRect.br();
+
+	    int colNum = imgIn.cols();
+	    int rowNum = imgIn.rows();
+
+	    int wristThresh = 10;
+
+	    List<Integer> countOnes = new ArrayList<Integer>();
+
+	    if (tl.x < armMargin) {
+		double rowLimit = br.y;
+		int localMinId = 0;
+		for (int x = (int)tl.x; x < br.x; x++)
+		{
+		    int curOnes = Core.countNonZero(roi.col(x));
+		    int lstTail = countOnes.size()-1;
+		    if (lstTail >= 0) {
+			if (curOnes < countOnes.get(lstTail)) {
+			    localMinId = x;
+			}
+		    }
+
+		    if (curOnes > (countOnes.get(localMinId) + wristThresh))
+			break;
+
+		    countOnes.add(curOnes);
+		}
+
+		Rect newBoxRect = new Rect(new Point(localMinId, tl.y), br);
+		roi = new Mat(imgIn, newBoxRect);
+
+		Point newtl = newBoxRect.tl();
+		Point newbr = newBoxRect.br();
+
+		int y1 = (int)newBoxRect.tl().y;
+		while (Core.countNonZero(roi.row(y1)) < 2) {
+		    y1++;
+		}
+
+		int y2 = (int)newBoxRect.br().y;
+		while (Core.countNonZero(roi.row(y2)) < 2) {
+		    y2--;
+		}
+		finalRect = new Rect(new Point(newtl.x, y1), new Point(newbr.x, y2));
+	    } else if (br.y > rowNum - armMargin) {
+		double rowLimit = br.y;
+
+
+
+		int scanCount = 0;
+		int scanLength = 8;
+		int scanDelta = 8;
+		int y;
+		for (y = (int)br.y - 1; y > tl.y; y--)
+		{
+		    int curOnes = Core.countNonZero((roi.row(y - (int)tl.y)));
+		    int lstTail = countOnes.size()-1;
+		    if (lstTail >= 0) {
+			countOnes.add(curOnes);
+
+			if (scanCount % scanLength == 0) {
+			    int curDelta = curOnes - countOnes.get(scanCount-5);
+			    if (curDelta > scanDelta)
+				break;
+			}
+
+
+		    } else
+			countOnes.add(curOnes);
+
+		    scanCount++;
+		}
+		finalRect = new Rect(tl, new Point(br.x, y+scanLength));
+	    }
+
+	    if (finalRect!=null) {
+		roi = new Mat(imgIn, finalRect);
+		roi.copyTo(tmpMat);
+		imgIn.copyTo(imgOut);
+		imgOut.setTo(Scalar.all(0));
+		roi = new Mat(imgOut, finalRect);
+		tmpMat.copyTo(roi);
+	    }
+	}
+
+    }
+
+    void produceBinHandImg(Mat imgIn, Mat imgOut)
+    {
+	for (int i = 0; i < 7; i++)
+	{
+	    lowerBound.set(new double[]{ctx.getAvgColor()[i][0]-cLower[i][0], ctx.getAvgColor()[i][1]-cLower[i][1],
+	                                ctx.getAvgColor()[i][2]-cLower[i][2]});
+	    upperBound.set(new double[]{ctx.getAvgColor()[i][0]+cUpper[i][0], ctx.getAvgColor()[i][1]+cUpper[i][1],
+	                                ctx.getAvgColor()[i][2]+cUpper[i][2]});
+
+
+
+
+	    Core.inRange(imgIn, lowerBound, upperBound, sampleMats[i]);
+
+
+	}
+
+	imgOut.release();
+	sampleMats[0].copyTo(imgOut);
+
+
+	for (int i = 1; i < SAMPLE_NUM; i++)
+	{
+	    Core.add(imgOut, sampleMats[i], imgOut);
+	}
+
+
+
+	Imgproc.medianBlur(imgOut, imgOut, 3);
+    }
+
+    void boundariesCorrection()
+    {
+	for (int i = 1; i < SAMPLE_NUM; i++)
+	{
+	    for (int j = 0; j < 3; j++)
+	    {
+		cLower[i][j] = cLower[0][j];
+		cUpper[i][j] = cUpper[0][j];
+
+		cBackLower[i][j] = cBackLower[0][j];
+		cBackUpper[i][j] = cBackUpper[0][j];
+	    }
+	}
+
+	for (int i = 0; i < SAMPLE_NUM; i++)
+	{
+	    for (int j = 0; j < 3; j++)
+	    {
+		if (ctx.getAvgColor()[i][j] - cLower[i][j] < 0)
+		    cLower[i][j] = ctx.getAvgColor()[i][j];
+
+		if (ctx.getAvgColor()[i][j] + cUpper[i][j] > 255)
+		    cUpper[i][j] = 255 - ctx.getAvgColor()[i][j];
+
+		if (ctx.getAvgColor()[i][j] - cBackLower[i][j] < 0)
+		    cBackLower[i][j] = ctx.getAvgColor()[i][j];
+
+		if (ctx.getAvgColor()[i][j] + cBackUpper[i][j] > 255)
+		    cBackUpper[i][j] = 255 - ctx.getAvgColor()[i][j];
+	    }
+	}
+    }
+
+    void produceBinImg(Mat imgIn, Mat imgOut)
+    {
+	int colNum = imgIn.cols();
+	int rowNum = imgIn.rows();
+	int boxExtension = 0;
+
+	boundariesCorrection();
+
+	Mat binTmpMat = new Mat();
+	Mat binTmpMat2 = new Mat();
+
+	produceBinHandImg(imgIn, binTmpMat);
+
+
+	produceBinBackImg(imgIn, binTmpMat2);
+
+
+	Core.bitwise_and(binTmpMat, binTmpMat2, binTmpMat);
+	binTmpMat.copyTo(tmpMat);
+	binTmpMat.copyTo(imgOut);
+
+	Rect roiRect = makeBoundingBox(tmpMat);
+	//adjustBoundingBox(roiRect, binTmpMat);
+
+	if (roiRect!=null) {
+	    roiRect.x = Math.max(0, roiRect.x - boxExtension);
+	    roiRect.y = Math.max(0, roiRect.y - boxExtension);
+	    roiRect.width = Math.min(roiRect.width+boxExtension, colNum);
+	    roiRect.height = Math.min(roiRect.height+boxExtension, rowNum);
+
+
+	    Mat roi1 = new Mat(binTmpMat, roiRect);
+	    Mat roi3 = new Mat(imgOut, roiRect);
+	    imgOut.setTo(Scalar.all(0));
+
+	    roi1.copyTo(roi3);
+
+	    Mat element = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(3, 3));	
+	    Imgproc.dilate(roi3, roi3, element, new Point(-1, -1), 2);
+
+	    Imgproc.erode(roi3, roi3, element, new Point(-1, -1), 2);
+
+
+	}
+
+	cropBinImg(imgOut, imgOut);
+
+    }
+
+
+    void produceBinBackImg(Mat imgIn, Mat imgOut)
+    {
+	for (int i = 0; i < SAMPLE_NUM; i++)
+	{
+
+
+	    lowerBound.set(new double[]{ctx.getAvgColor()[i][0]-cBackLower[i][0], ctx.getAvgColor()[i][1]-cBackLower[i][1],
+	                                ctx.getAvgColor()[i][2]-cBackLower[i][2]});
+	    upperBound.set(new double[]{ctx.getAvgColor()[i][0]+cBackUpper[i][0], ctx.getAvgColor()[i][1]+cBackUpper[i][1],
+	                                ctx.getAvgColor()[i][2]+cBackUpper[i][2]});
+
+
+	    Core.inRange(imgIn, lowerBound, upperBound, sampleMats[i]);
+
+
+	}
+
+	imgOut.release();
+	sampleMats[0].copyTo(imgOut);
+
+
+	for (int i = 1; i < SAMPLE_NUM; i++)
+	{
+	    Core.add(imgOut, sampleMats[i], imgOut);
+	}
+
+	Core.bitwise_not(imgOut, imgOut);
+
+
+	Imgproc.medianBlur(imgOut, imgOut, 7);
+
+
+    }
+
+    void initCLowerUpper(double cl1, double cu1, double cl2, double cu2, double cl3,
+                         double cu3)
+    {
+	cLower[0][0] = cl1;
+	cUpper[0][0] = cu1;
+	cLower[0][1] = cl2;
+	cUpper[0][1] = cu2;
+	cLower[0][2] = cl3;
+	cUpper[0][2] = cu3;
+    }
+
+    void initCBackLowerUpper(double cl1, double cu1, double cl2, double cu2, double cl3,
+                             double cu3)
+    {
+	cBackLower[0][0] = cl1;
+	cBackUpper[0][0] = cu1;
+	cBackLower[0][1] = cl2;
+	cBackUpper[0][1] = cu2;
+	cBackLower[0][2] = cl3;
+	cBackUpper[0][2] = cu3;
+    }
+
+
+    boolean isClosedToBoundary(Point pt, Mat img)
+    {
+	int margin = 5;
+	if ((pt.x > margin) && (pt.y > margin) && 
+		(pt.x < img.cols()-margin) &&
+		(pt.y < img.rows()-margin)) {
+	    return false;
+	}
+
+	return true;
+    }
+
+
+    void makeContours(){
+	ctx.getContours().clear();
+	Imgproc.findContours(binMat, ctx.getContours(), new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
+
+	//Find biggest contour and return the index of the contour, which is hg.cMaxId
+
+	int biggestContour = ctx.getBiggestContour();
+
+	if (biggestContour > -1) {
+
+	    MatOfPoint bigg = ctx.getContours().get(biggestContour);
+
+	    MatOfPoint2f curve = new MatOfPoint2f();
+	    curve.fromList(bigg.toList());
+
+	    Imgproc.approxPolyDP(curve, curve, 2, true);
+
+	    bigg.fromList(curve.toList());
+
+	    Imgproc.drawContours(ctx.getMainFrame(), ctx.getContours(), ctx.getBiggestContour(), new Scalar(0, 255, 230), 1);
+
+
+	    //Palm center is stored in hg.inCircle, radius of the inscribed circle is stored in hg.inCircleRadius
+	    //hg.findInscribedCircle(rgbaMat);
+
+
+	    boundingRect = Imgproc.boundingRect(bigg);
+
+	    Imgproc.convexHull(bigg, ctx.getHull()[0], false);
+
+	    List<MatOfPoint> hullP = new ArrayList<MatOfPoint>();
+	    for (int i = 0; i < ctx.getContours().size(); i++)
+		hullP.add(new MatOfPoint());
+
+
+	    int[] cId = ctx.getHull()[0].toArray();
+	    List<Point> lp = new ArrayList<Point>();
+	    Point[] contourPts = bigg.toArray();
+
+	    for (int i = 0; i < cId.length; i++)
+	    {
+		lp.add(contourPts[cId[i]]);
+		//Core.circle(rgbaMat, contourPts[cId[i]], 2, new Scalar(241, 247, 45), -3);
+	    }
+
+	    //hg.hullP.get(hg.cMaxId) returns the locations of the points in the convex hull of the hand
+	    hullP.get(ctx.getBiggestContour()).fromList(lp);
+	    lp.clear();
+
+
+	    fingerTips.clear();
+	    defectPoints.clear();
+	    //defectPointsOrdered.clear();
+
+	    //fingerTipsOrdered.clear();
+	    defectIdAfter.clear();
+
+
+	    if ((contourPts.length >= 5) 
+		    && /*hg.detectIsHand(rgbaMat) &&*/ (cId.length >=5)){
+		Imgproc.convexityDefects(bigg, ctx.getHull()[0], defects);
+		List<Integer> dList = defects.toList();
+
+
+		Point prevPoint = null;
+
+		for (int i = 0; i < dList.size(); i++)
+		{
+		    int id = i % 4;
+		    Point curPoint;
+
+		    if (id == 2) { //Defect point
+			double depth = (double)dList.get(i+1)/256.0;
+			curPoint = contourPts[dList.get(i)];
+
+			Point curPoint0 = contourPts[dList.get(i-2)];
+			Point curPoint1 = contourPts[dList.get(i-1)];
+			Point vec0 = new Point(curPoint0.x - curPoint.x, curPoint0.y - curPoint.y);
+			Point vec1 = new Point(curPoint1.x - curPoint.x, curPoint1.y - curPoint.y);
+			double dot = vec0.x*vec1.x + vec0.y*vec1.y;
+			double lenth0 = Math.sqrt(vec0.x*vec0.x + vec0.y*vec0.y);
+			double lenth1 = Math.sqrt(vec1.x*vec1.x + vec1.y*vec1.y);
+			double cosTheta = dot/(lenth0*lenth1);
+
+			if ((depth > inCircleRadius*0.7)&&(cosTheta>=-0.7)
+				&& (!isClosedToBoundary(curPoint0, rgbaMat))
+				&&(!isClosedToBoundary(curPoint1, rgbaMat))
+				){
+
+
+			    defectIdAfter.add((i));
+
+
+			    Point finVec0 = new Point(curPoint0.x-inCircle.x,
+			                              curPoint0.y-inCircle.y);
+			    double finAngle0 = Math.atan2(finVec0.y, finVec0.x);
+			    Point finVec1 = new Point(curPoint1.x-inCircle.x,
+			                              curPoint1.y - inCircle.y);
+			    double finAngle1 = Math.atan2(finVec1.y, finVec1.x);
+
+
+			}
+
+
+
+		    }
+		}
+
+
+	    }
+
+	}
+
+	Imgproc.rectangle(rgbaMat, boundingRect.tl(), boundingRect.br(), new Scalar(0, 255, 0), 2);
+	Imgproc.drawContours(rgbaMat, hullP, ctx.getBiggestContour(), new Scalar(0, 255, 255));
+
+    }
+
+
+    List<Mat> mygesturedetect() {
+
+	List<Mat> processedIms = new ArrayList<Mat>();
+	//subtractBackground();
+
+	//facedetect();
+
+	initCLowerUpper(50, 50, 10, 10, 10, 10);
+	initCBackLowerUpper(50, 50, 3, 3, 3, 3);
+
+	rgbaMat = ctx.getMainFrame().clone();
+
+	Core.flip(rgbaMat, rgbaMat, 1);
+
+
+	Imgproc.GaussianBlur(rgbaMat, rgbaMat, new Size(5,5), 5, 5);
+
+	Imgproc.cvtColor(rgbaMat, interMat, Imgproc.COLOR_BGR2Lab);
+
+	Mode mode = ctx.getMODE();
+
+
+	if(ctx.getAvgColor() == null){
+	    Imgproc.putText(ctx.getMainFrame(), "Sampling calistirilmadan detection calismaz.",
+	                    new Point(30, 30), Core.FONT_HERSHEY_COMPLEX_SMALL, 0.8, new Scalar(200, 200, 250));
+
+	    processedIms.add(ctx.getMainFrame());
+
+	    return processedIms;
+	}
+
+
+	if (mode == Mode.SAMPLE) { //Second mode which presamples the colors of the hand  
+
+	    handModeling();
+
+	} else if (mode == Mode.DETECT) {
+	    produceBinImg(interMat, binMat);
+
+	    processedIms.add(binMat);
+	    return processedIms;
+
+	} else if (mode == Mode.TEST){
+
+	    produceBinImg(interMat, binMat);
+
+	    makeContours();
+	} else if(mode == Mode.BACKGROUND){
+	    backgroundModeling();
+	}
+
+	processedIms.add(ctx.getMainFrame());
+
+	return processedIms;
+    }
 }
