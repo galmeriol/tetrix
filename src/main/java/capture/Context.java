@@ -2,7 +2,10 @@ package capture;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+import java.util.Stack;
 
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfInt;
@@ -14,255 +17,515 @@ import org.opencv.core.RotatedRect;
 import org.opencv.objdetect.CascadeClassifier;
 
 public class Context {
-    
-    
-    private Mode MODE = null;
-    
-    private HashMap faceDetectionBag = new HashMap();
-    private HashMap handDetectionBag = new HashMap();
-    private HashMap hullBag = new HashMap();
-    
-    
-    private Rect faceregion = new Rect();
-    private Rect backgroundSample = new Rect(100, 100, 300, 300);
-    
-    private HashMap TetrixBag = new HashMap();
-    
-    private int ismyframeuse = 0;
-    private int palm_radius;
-    private int faceSize = 0;
-    private CascadeClassifier face_cascade = new CascadeClassifier( 
-                                                           System.getProperty("user.dir") + "/src/main/java/haarcascade_frontalface_default.xml");
-    private Mat mybackground = new Mat();
-    private float radius_palm_center = 0.0f;
-    /*
-    CvSeq fingerseq = new CvSeq();
+    public GestureVars vars = new GestureVars();
 
-    CvBox2D contour_center = new CvBox2D();*/
-    private List<Point> fingerseq = new ArrayList<Point>();
-    private List<Point> finger_dft = new ArrayList<Point>();
-    private List<Point> palm = new ArrayList<Point>();
-    private Point palm_center = new Point();
-    private Point p = new Point();
-    private MatOfInt4[] defects;
-    private MatOfInt[] hull;
-    private Point armcenter = new Point();
-    private RotatedRect contour_center;
-    private List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
-    private int biggestContour = 0;
-    private Rect[] faces;
-    private List<Rect> guideRects = new ArrayList<Rect>();
-    private List<Rect> backGuideRect = new ArrayList<Rect>();
-    private double squareLen = 0;
+    private Mode MODE = null;
+    private Mat MAINFrame = null;
+    private Mat HSVFrame = null;
+    private Mat FRAMEBack = null;
+    private Mat HISTFrame = null;
     
-    private double[][] avgColor = null;
+    private List<String> actionDirNames = null;
     
-    private Mat frameHSV = new Mat();
-    private Mat frameThr = new Mat();
-    private Mat frameSubtracted = new Mat();
-    private Mat frameBackground = new  Mat();
-    private Mat frameForHandModeling = new Mat();
-    private Mat frameForBackModeling = new Mat();
     
-    private Mat mainFrame = new Mat();
+    private List<List<Mat>> actions = null;
+    private List<Mat> action = null;
     
-    public HashMap getTetrixBag() {
-	return TetrixBag;
+    public List<Mat> getAction() {
+        return action;
     }
-    public void setTetrixBag(HashMap params) {
-	this.TetrixBag = params;
+
+
+    public void setAction(List<Mat> action) {
+        this.action = action;
     }
-    public int getIsmyframeuse() {
-	return ismyframeuse;
+
+    private List<double[]> action_features = null;
+    private List<List<double[]>> actions_features = null;
+    
+    public List<List<double[]>> getActions_Features() {
+        return actions_features;
     }
-    public void setIsmyframeuse(int ismyframeuse) {
-	this.ismyframeuse = ismyframeuse;
+
+
+    public void setActions_Features(List<List<double[]>> actions_features) {
+        this.actions_features = actions_features;
     }
-    public int getPalm_radius() {
-	return palm_radius;
+
+
+
+
+    public List<List<Mat>> getActions() {
+        return actions;
     }
-    public void setPalm_radius(int palm_radius) {
-	this.palm_radius = palm_radius;
+
+
+
+
+    public void setActions(List<List<Mat>> actions) {
+        this.actions = actions;
     }
-    public int getFaceSize() {
-	return faceSize;
+
+
+
+
+    public List<double[]> getAction_features() {
+        return action_features;
     }
-    public void setFaceSize(int faceSize) {
-	this.faceSize = faceSize;
+
+
+
+
+    public void setAction_features(List<double[]> action_features) {
+        this.action_features = action_features;
     }
-    public CascadeClassifier getFace_cascade() {
-	return face_cascade;
-    }
-    public void setFace_cascade(CascadeClassifier face_cascade) {
-	this.face_cascade = face_cascade;
-    }
-    public Mat getMybackground() {
-	return mybackground;
-    }
-    public void setMybackground(Mat mybackground) {
-	this.mybackground = mybackground;
-    }
-    public float getRadius_palm_center() {
-	return radius_palm_center;
-    }
-    public void setRadius_palm_center(float radius_palm_center) {
-	this.radius_palm_center = radius_palm_center;
-    }
-    public List<Point> getFingerseq() {
-	return fingerseq;
-    }
-    public void setFingerseq(List<Point> fingerseq) {
-	this.fingerseq = fingerseq;
-    }
-    public List<Point> getFinger_dft() {
-	return finger_dft;
-    }
-    public void setFinger_dft(List<Point> finger_dft) {
-	this.finger_dft = finger_dft;
-    }
-    public List<Point> getPalm() {
-	return palm;
-    }
-    public void setPalm(List<Point> palm) {
-	this.palm = palm;
-    }
-    public Point getPalm_center() {
-	return palm_center;
-    }
-    public void setPalm_center(Point palm_center) {
-	this.palm_center = palm_center;
-    }
-    public Point getP() {
-	return p;
-    }
-    public void setP(Point p) {
-	this.p = p;
-    }
-    public MatOfInt4[] getDefects() {
-	return defects;
-    }
-    public void setDefects(MatOfInt4[] defects) {
-	this.defects = defects;
-    }
-    public MatOfInt[] getHull() {
-	return hull;
-    }
-    public void setHull(MatOfInt[] hull) {
-	this.hull = hull;
-    }
-    public Point getArmcenter() {
-	return armcenter;
-    }
-    public void setArmcenter(Point armcenter) {
-	this.armcenter = armcenter;
-    }
-    public RotatedRect getContour_center() {
-	return contour_center;
-    }
-    public void setContour_center(RotatedRect contour_center) {
-	this.contour_center = contour_center;
-    }
-    public List<MatOfPoint> getContours() {
-	return contours;
-    }
-    public void setContours(List<MatOfPoint> contours) {
-	this.contours = contours;
-    }
-    public Rect[] getFaces() {
-	return faces;
-    }
-    public void setFaces(Rect[] faces) {
-	this.faces = faces;
-    }
-    public Mat getFrameHSV() {
-	return frameHSV;
-    }
-    public void setFrameHSV(Mat frameHSV) {
-	this.frameHSV = frameHSV;
-    }
-    public Mat getFrameThr() {
-	return frameThr;
-    }
-    public void setFrameThr(Mat frameThr) {
-	this.frameThr = frameThr;
-    }
-    public Mat getMainFrame() {
-        return mainFrame;
-    }
-    public void setMainFrame(Mat mainFrame) {
-        this.mainFrame = mainFrame;
-    }
-    public Rect getFaceregion() {
-        return faceregion;
-    }
-    public void setFaceregion(Rect faceregion) {
-        this.faceregion = faceregion;
-    }
-    public Mat getFrameSubtracted() {
-        return frameSubtracted;
-    }
-    public void setFrameSubtracted(Mat frameSubtracted) {
-        this.frameSubtracted = frameSubtracted;
-    }
-    public Mat getFrameBackground() {
-        return frameBackground;
-    }
-    public void setFrameBackground(Mat frameBackground) {
-        this.frameBackground = frameBackground;
-    }
-    public Rect getBackgroundSample() {
-        return backgroundSample;
-    }
-    public void setBackgroundSample(Rect backgroundSample) {
-        this.backgroundSample = backgroundSample;
-    }
-    public Mat getFrameForHandModeling() {
-        return frameForHandModeling;
-    }
-    public void setFrameForHandModeling(Mat frameForHandModeling) {
-        this.frameForHandModeling = frameForHandModeling;
-    }
-    public List<Rect> getGuideRects() {
-        return guideRects;
-    }
-    public void setGuideRects(List<Rect> guideRects) {
-        this.guideRects = guideRects;
-    }
-    public double getSquareLen() {
-        return squareLen;
-    }
-    public void setSquareLen(double squareLen) {
-        this.squareLen = squareLen;
-    }
-    public double[][] getAvgColor() {
-        return avgColor;
-    }
-    public void setAvgColor(double[][] avgColor) {
-        this.avgColor = avgColor;
-    }
+
+
+
+
     public Mode getMODE() {
 	return MODE;
     }
 
+
+
+
     public void setMODE(Mode mode) {
 	MODE = mode;
     }
-    public int getBiggestContour() {
-        return biggestContour;
+
+
+
+
+    public Mat getMAINFrame() {
+	return MAINFrame;
     }
-    public void setBiggestContour(int biggestContour) {
-        this.biggestContour = biggestContour;
+
+
+
+
+    public void setMAINFrame(Mat mAINFrame) {
+	MAINFrame = mAINFrame;
     }
-    public List<Rect> getBackGuideRect() {
-        return backGuideRect;
+
+    /*
+     * 
+     * Optical flow modeli için frame tanımlamaları
+     * 
+     * */
+
+    public Mat getFRAMEBack() {
+	return FRAMEBack;
     }
-    public void setBackGuideRect(List<Rect> backGuideRect) {
-        this.backGuideRect = backGuideRect;
+
+
+
+
+    public void setFRAMEBack(Mat fRAMEBack) {
+	FRAMEBack = fRAMEBack;
     }
-    public Mat getFrameForBackModeling() {
-        return frameForBackModeling;
+
+    public Mat getHISTFrame() {
+	return HISTFrame;
     }
-    public void setFrameForBackModeling(Mat frameForBackModeling) {
-        this.frameForBackModeling = frameForBackModeling;
+
+
+
+
+    public void setHISTFrame(Mat hISTFrame) {
+	HISTFrame = hISTFrame;
     }
+
+    private Mat GRAYFrame = null;
+    private Mat FLOWFrame = null;
+    
+    private Mat GRAYFarneFrame = null;
+    private Mat FLOWFarneFrame = null;
+
+    private Mat FARNEFrame = null;
+
+    public Mat getFLOWFrame() {
+        return FLOWFrame;
+    }
+
+
+
+
+    public void setFLOWFrame(Mat fLOWFrame) {
+        FLOWFrame = fLOWFrame;
+    }
+
+
+
+
+    public Mat getGRAYFrame() {
+	return GRAYFrame;
+    }
+
+
+
+
+    public void setGRAYFrame(Mat gRAYFrame) {
+	GRAYFrame = gRAYFrame;
+    }
+
+    public Mat getGRAYFarneFrame() {
+	return GRAYFarneFrame;
+    }
+
+
+
+
+    public void setGRAYFarneFrame(Mat gRAYFarneFrame) {
+	GRAYFarneFrame = gRAYFarneFrame;
+    }
+
+
+
+
+    public Mat getFLOWFarneFrame() {
+	return FLOWFarneFrame;
+    }
+
+
+
+
+    public void setFLOWFarneFrame(Mat fLOWFarneFrame) {
+	FLOWFarneFrame = fLOWFarneFrame;
+    }
+
+
+
+
+    public Mat getFARNEFrame() {
+	return FARNEFrame;
+    }
+
+
+
+
+    public void setFARNEFrame(Mat fARNEFrame) {
+	FARNEFrame = fARNEFrame;
+    }
+
+
+
+
+    public void initFramesForOpticalFlowModel(){
+
+	actionDirNames = new ArrayList<String>();
+	action = new ArrayList<Mat>();
+	actions = new ArrayList<List<Mat>>();
+	action_features = new ArrayList<double[]>();
+	actions_features = new ArrayList<List<double[]>>();
+	
+	MAINFrame = new Mat();
+	FRAMEBack = new Mat();
+	HISTFrame = new Mat();
+	
+	HSVFrame = new Mat();
+
+	THRESHOLDFrame = new Mat();
+
+	GRAYFrame = new Mat();
+	FLOWFrame = new Mat();
+	
+	GRAYFarneFrame = new Mat();
+	FLOWFarneFrame = new Mat();
+	
+	setFARNEFrame(new Mat());
+
+    }
+
+    /*
+     * 
+     * Optical flow modeli için frame tanımlamaları sonu
+     * 
+     * 
+     * */
+
+    
+
+    /*
+     * 
+     * Diff model için Frame tanımlamaları 
+     * 
+     * */
+
+    private Mat YUVFrame = null;
+
+    private LinkedList<Mat> FRAMESequence = null;
+    private LinkedList<Mat> FRAMEGraySequence = null;
+    private LinkedList<Mat> FRAMEDiffSequence = null;
+    
+    private Mat FIRSTFrame = null;
+    private Mat SECONDFrame = null;
+    private Mat THIRDFrame = null;
+
+    private Mat GRAYFrame1 = null;
+    private Mat GRAYFrame2 = null;
+    private Mat GRAYFrame3 = null;
+
+    private Mat DIFFFrame1 = null;
+    private Mat DIFFFrame2 = null;
+
+    private Mat BITWISEFrame = null;
+    private Mat THRESHOLDFrame = null;
+
+
+
+
+    @SuppressWarnings("serial")
+    public void initFramesForDiffModel(){
+
+	MAINFrame = new Mat();
+	FRAMEBack = new Mat();
+	HISTFrame = new Mat();
+	
+	HSVFrame = new Mat();
+	YUVFrame = new Mat();
+
+	FIRSTFrame = new Mat();
+	SECONDFrame = new Mat();
+	THIRDFrame = new Mat();
+
+	DIFFFrame1 = new Mat();
+	DIFFFrame2 = new Mat();
+
+	BITWISEFrame = new Mat();
+	THRESHOLDFrame = new Mat();
+
+	GRAYFrame1 = new Mat();
+	GRAYFrame2 = new Mat();
+	GRAYFrame3 = new Mat();
+	
+	FRAMESequence = new LinkedList<Mat>();
+	FRAMEGraySequence = new LinkedList<Mat>();
+	FRAMEDiffSequence = new LinkedList<Mat>();
+    }
+
+    public Mat getHSVFrame() {
+	return HSVFrame;
+    }
+
+
+
+
+    public void setHSVFrame(Mat hSVFrame) {
+	HSVFrame = hSVFrame;
+    }
+
+
+
+
+    public Mat getYUVFrame() {
+	return YUVFrame;
+    }
+
+
+
+
+    public void setYUVFrame(Mat yUVFrame) {
+	YUVFrame = yUVFrame;
+    }
+
+
+
+
+    public Mat getFIRSTFrame() {
+	return FIRSTFrame;
+    }
+
+
+
+
+    public void setFIRSTFrame(Mat fIRSTFrame) {
+	FIRSTFrame = fIRSTFrame;
+    }
+
+
+
+
+    public Mat getSECONDFrame() {
+	return SECONDFrame;
+    }
+
+
+
+
+    public void setSECONDFrame(Mat sECONDFrame) {
+	SECONDFrame = sECONDFrame;
+    }
+
+
+
+
+    public Mat getTHIRDFrame() {
+	return THIRDFrame;
+    }
+
+
+
+
+    public void setTHIRDFrame(Mat tHIRDFrame) {
+	THIRDFrame = tHIRDFrame;
+    }
+
+
+
+
+    public Mat getGRAYFrame1() {
+	return GRAYFrame1;
+    }
+
+
+
+
+    public void setGRAYFrame1(Mat gRAYFrame1) {
+	GRAYFrame1 = gRAYFrame1;
+    }
+
+
+
+
+    public Mat getGRAYFrame2() {
+	return GRAYFrame2;
+    }
+
+
+
+
+    public void setGRAYFrame2(Mat gRAYFrame2) {
+	GRAYFrame2 = gRAYFrame2;
+    }
+
+
+
+
+    public Mat getGRAYFrame3() {
+	return GRAYFrame3;
+    }
+
+
+
+
+    public void setGRAYFrame3(Mat gRAYFrame3) {
+	GRAYFrame3 = gRAYFrame3;
+    }
+
+
+
+
+    public Mat getDIFFFrame1() {
+	return DIFFFrame1;
+    }
+
+
+
+
+    public void setDIFFFrame1(Mat dIFFFrame1) {
+	DIFFFrame1 = dIFFFrame1;
+    }
+
+
+
+
+    public Mat getDIFFFrame2() {
+	return DIFFFrame2;
+    }
+
+
+
+
+    public void setDIFFFrame2(Mat dIFFFrame2) {
+	DIFFFrame2 = dIFFFrame2;
+    }
+
+
+
+
+    public Mat getBITWISEFrame() {
+	return BITWISEFrame;
+    }
+
+
+
+
+    public void setBITWISEFrame(Mat bITWISEFrame) {
+	BITWISEFrame = bITWISEFrame;
+    }
+
+
+
+
+    public Mat getTHRESHOLDFrame() {
+	return THRESHOLDFrame;
+    }
+
+
+
+
+    public void setTHRESHOLDFrame(Mat dIFFFrame3) {
+	THRESHOLDFrame = dIFFFrame3;
+    }
+
+
+
+
+    public LinkedList<Mat> getFRAMESequence() {
+	return FRAMESequence;
+    }
+
+
+
+
+    public void setFRAMESequence(LinkedList<Mat> fRAMESequence) {
+	FRAMESequence = fRAMESequence;
+    }
+
+
+
+
+    public LinkedList<Mat> getFRAMEGraySequence() {
+	return FRAMEGraySequence;
+    }
+
+
+
+
+    public void setFRAMEGraySequence(LinkedList<Mat> fRAMEGraySequence) {
+	FRAMEGraySequence = fRAMEGraySequence;
+    }
+
+
+
+
+    public LinkedList<Mat> getFRAMEDiffSequence() {
+	return FRAMEDiffSequence;
+    }
+
+
+
+
+    public void setFRAMEDiffSequence(LinkedList<Mat> fRAMEDiffSequence) {
+	FRAMEDiffSequence = fRAMEDiffSequence;
+    }
+
+
+    public List<String> getActionDirNames() {
+	return actionDirNames;
+    }
+
+
+    public void setActionDirNames(List<String> actionDirNames) {
+	this.actionDirNames = actionDirNames;
+    }
+
+
+    /*
+     * 
+     * Diff model için frame tanımlamaları sonu
+     * 
+     * */
+
 }

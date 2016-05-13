@@ -11,50 +11,36 @@ import javax.swing.JFrame;
 
 import org.opencv.core.Mat;
 
-public class Frame {
+public class Frame extends JFrame{
 
-    private final JFrame frame;
+    //private final JFrame frame;
 
     private final FramePanel videoPanel;
-
+    private ConfigPanel configPanel = null;
     boolean notify = false;
+    
     @SuppressWarnings("rawtypes")
     HashMap initVals = new HashMap();
     
     Context ctx = null;
     
     public Frame(String title, Context ctx, boolean isConfigActive) {
-	frame = new JFrame(title);
-	frame.getContentPane().setLayout(new FlowLayout());
-	frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-	frame.setVisible(true);
-	this.setCtx(ctx);
+	
+	super(title);
+	getContentPane().setLayout(new FlowLayout());
+	setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+	setVisible(true);
+	setCtx(ctx);
 	videoPanel = new FramePanel();
+	
 	if(isConfigActive){
-	    ConfigPanel configPanel = new ConfigPanel(new Dimension(200, 480));
-	    configPanel.setFrame(this);
-	    frame.getContentPane().add(configPanel);
+	    configPanel = new ConfigPanel(new Dimension(200, 480));
+	    configPanel.setCtx(ctx);
+	    getContentPane().add(configPanel);
 	}
-	frame.getContentPane().add(videoPanel);
+	getContentPane().add(videoPanel);
     }  
-
-    @SuppressWarnings("unchecked")
-    public void setParam(Object key, Object val){
-	this.initVals.put(key, val);
-	System.out.println(key  +  " " + val);
-	notify = true;
-
-    }
-    @SuppressWarnings("rawtypes")
-    public HashMap getParams(){
-	notify = false;
-	return initVals;
-    }
-
-    public boolean isNotified(){
-	return notify;
-    }
-
+    
     public void setMODE(Mode mode){
 	ctx.setMODE(mode);
     }
@@ -62,16 +48,12 @@ public class Frame {
     public Mode getMODE(){
 	return ctx.getMODE();
     }
-    
-    public void setVisible(boolean visible) {
-	frame.setVisible(visible);
-    }
-
+   
     public void render(Mat image) {
 	Image i = toBufferedImage(image);
 	videoPanel.setImage(i);
 	videoPanel.repaint();
-	frame.pack();
+	pack();
     }
 
     public static Image toBufferedImage(Mat m){

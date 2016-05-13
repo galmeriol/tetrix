@@ -1,5 +1,6 @@
 package capture;
 
+import java.applet.Applet;
 import java.awt.EventQueue;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
@@ -9,11 +10,14 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
 
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
@@ -24,6 +28,7 @@ import javax.swing.JLabel;
 
 
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 import org.opencv.core.*;
@@ -38,100 +43,130 @@ import org.opencv.objdetect.*;
 import org.opencv.core.Mat;
 import org.opencv.ml.*;
 
-import com.atul.JavaOpenCV.Imshow;
-
 /**
  * @author zafer erdoğan
  *
  */
-public class Tetrix{
 
-    public Tetrix() {
+public class Tetrix implements Observer{
 
-    }
-    void begin() throws InterruptedException{
-	GrabThread t1 = new GrabThread();
-	DetectionThread t2 = new DetectionThread();
-
-	t1.start();
-	t2.start();
-
-    }
-
-
-    Mat grabbedIm = new Mat();
     List<Mat> processedIms = new ArrayList<Mat>();
     List<Frame> frames = new ArrayList<Frame>();
     FrameHelper helper = new FrameHelper();
+    VideoCapture grabber = new VideoCapture(0);
+    
+
+    public Tetrix() throws InterruptedException {
+	begin();
+    }
+
+
+    IGestureListener mHandGestureListener;
+    public void setHandGestureListener(IGestureListener handGestureListener) {
+	mHandGestureListener = handGestureListener;
+    }
+
+    void begin() throws InterruptedException{
+	helper.addObserver(this);
+	ctx.initFramesForDiffModel();
+	ctx.initFramesForOpticalFlowModel();
+	
+	GrabThread t1 = new GrabThread();
+	DetectionThread t2 = new DetectionThread();
+
+	t1.start();	
+	t2.start();
+
+
+    }
+    
+    Context ctx = new Context();
+
+    private void setCtx(Context c){
+	ctx = c;
+    }
+
 
     class GrabThread extends Thread{
-	@Override
+
+
 	public void run() {
 
-	    VideoCapture grabber = new VideoCapture();
 	    grabber.open(0);
 
 	    if(!grabber.isOpened())
-		System.exit(-1);
+		return;
 
-	    for (;;){
-		if(grabber.grab()){
-		    grabber.read(grabbedIm);
-		}
+	    grabber.grab();
+	    for(;;){
+		grabber.read(ctx.getMAINFrame());
 	    }
-
-	} 
+	}
     }
 
-    Context ctx = new Context();
+
     class DetectionThread extends Thread{
 	@Override
 	public void run() {
-	    ctx.setMODE(Mode.DETECT);
-	    frames.add(new Frame("Default", ctx, true));
+	    //VideoCapture grabber = new VideoCapture(0);
+	    //grabber.set(Videoio.CAP_PROP_FPS, 100);
+	    frames.add(new Frame("0", ctx, true));
+	    long initTime = System.currentTimeMillis();
+	    long currTime = 0;
 	    for(;;){
-		if(!grabbedIm.empty()){
-		    ctx.setMainFrame(grabbedIm);
-		    ctx.setMybackground(grabbedIm);
-		    ctx.setFrameForHandModeling(ctx.getMainFrame().clone());
-		    helper.setCtx(ctx);
-		    if(ctx.getMODE() == Mode.DETECT){
-			for (Frame f : frames) {
-			    if(f.isNotified())
-				processedIms = helper.notify(grabbedIm, f.getParams());
-			    else
-				processedIms = helper.mygesturedetect();
-			}
+		//if(grabber.grab()){
+		if(ctx.getMAINFrame().empty()) continue;
+		helper.setCtx(ctx);
 
-			if(frames.size() < processedIms.size()){
-			    int frameSize = frames.size();
-			    for(int i = 0;i < processedIms.size() - frameSize;i++)
-				frames.add(new Frame(String.valueOf(i), ctx, false));
-			}
+		/*for (Frame f : frames) {*/
 
-			for(int i = 0;i <processedIms.size();i++){
-			    frames.get(i).render(processedIms.get(i));
-			}
-		    }
-		    else if(ctx.getMODE() == Mode.SAMPLE){
-			ctx.setFrameForHandModeling(grabbedIm);
-			helper.handModeling();
-			frames.get(0).render(grabbedIm);
-		    }
-		    else if(ctx.getMODE() == Mode.BACKGROUND){
-			ctx.setFrameForBackModeling(grabbedIm);
-			helper.backgroundModeling();
-			frames.get(0).render(grabbedIm);
-		    }
+
+
+		Direction d = null;
+		
+		d = helper.mygesturedetect();
+		processedIms = helper.list();
+		
+		currTime = System.currentTimeMillis();
+		
+		if(!d.name.isEmpty() && currTime - initTime > 1000 && mHandGestureListener != null){
+		    if(d.name.contains("Left"))
+			mHandGestureListener.onLeftMove();
+		    else if(d.name.contains("Right"))
+			mHandGestureListener.onRightMove();
+		    else if(d.name.contains("Up"))
+			mHandGestureListener.onUpMove();
+		    else if(d.name.contains("Down"))
+			mHandGestureListener.onDownMove();
+		    
+		    initTime = currTime;
 		}
+
+		if(frames.size() < processedIms.size()){
+		    int frameSize = frames.size();
+		    for(int i = 1;i <= processedIms.size() - frameSize;i++)
+			frames.add(new Frame(String.valueOf(i), ctx, false));
+		}
+
+		for(int i = 0;i <processedIms.size();i++){
+		    frames.get(i).render(processedIms.get(i));
+		}
+
 	    }
 
-	}  
+	    //}
+
+	}
     } 
 
     public static void main(String[] args) throws InterruptedException {
 	System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 	Tetrix tetrix = new Tetrix();
-	tetrix.begin();
+
     }
+
+    public void update(Observable o, Object ctx) {
+	setCtx((Context)ctx);
+    }
+
 }
