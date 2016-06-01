@@ -69,7 +69,7 @@ public abstract class CommonModel {
 		    bins[i] = 0;
 		
 		bins[i] /= sum;
-		bins[i] *= 480;
+		//bins[i] *= 480;
 	    }
 	}
 	return bins;
@@ -77,31 +77,26 @@ public abstract class CommonModel {
 
     void histIm(double[] bins){
 
-	int binWidth = 21;
-
+	int binWidth = 640/(bins.length);
+	
 	for( int i = 0; i < bins.length; i++ )
-	{     
+	{
+	    double binH = bins[i]*480;
 	    org.opencv.imgproc.Imgproc.rectangle(
 	                                         ctx.getHISTFrame(),
-	                                         new org.opencv.core.Point(i*binWidth  , ctx.getHISTFrame().rows() - bins[i]),
-	                                         new org.opencv.core.Point(i*binWidth + binWidth, ctx.getHISTFrame().rows()) ,
+	                                         new org.opencv.core.Point(i*binWidth + 1 , ctx.getHISTFrame().rows() - binH),
+	                                         new org.opencv.core.Point(i*binWidth + binWidth - 1, ctx.getHISTFrame().rows()) ,
 	                                         blue,
 	                                         -1);
 	}
     }
     
     void writeToCSV(List<double[]> binsList) throws IOException{
-	String[] line = null;
-	List<String[]> lines = new ArrayList<String[]>();
-	for(double[] bins:binsList){
-	    line = new String[bins.length];
-	    for (int i = 0; i < bins.length; i++) {
-		line[i] = String.valueOf(bins[i]);
-	    }
-	    lines.add(line);
-	}
-	
-	csvHelper.write(lines);
+	csvHelper.writeToCSV(binsList);
+    }
+    
+    List<double[]> readFromCSV() throws IOException{
+	return csvHelper.readFromCSV();
     }
     
     

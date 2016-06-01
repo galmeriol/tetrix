@@ -31,6 +31,8 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
+import models.OpticalFlowModelFarne;
+
 import org.opencv.core.*;
 import org.opencv.*;
 import org.opencv.imgproc.*;
@@ -68,8 +70,14 @@ public class Tetrix implements Observer{
 
     void begin() throws InterruptedException{
 	helper.addObserver(this);
-	ctx.initFramesForDiffModel();
+	//ctx.initFramesForDiffModel();
 	ctx.initFramesForOpticalFlowModel();
+	ctx.setMODE(Mode.SAMPLE);
+	ctx.setModel(new OpticalFlowModelFarne());
+	Mat hand = Imgcodecs.imread(System.getProperty("user.dir") + "/src/main/java/hand.jpg");
+	//Imgproc.cvtColor(hand, hand, Imgproc.COLOR_BGR2GRAY);
+	ctx.setHand(hand);
+	
 	
 	GrabThread t1 = new GrabThread();
 	DetectionThread t2 = new DetectionThread();
@@ -123,8 +131,8 @@ public class Tetrix implements Observer{
 
 
 		Direction d = null;
-		
 		d = helper.mygesturedetect();
+		
 		processedIms = helper.list();
 		
 		currTime = System.currentTimeMillis();

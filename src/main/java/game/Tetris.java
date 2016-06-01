@@ -549,9 +549,9 @@ public class Tetris extends Applet implements IGestureListener{
     private void startGame() {
 	timer.setDelay(INITIAL_DELAY);
 	timer.setPaused(false);
-	start_newgame_butt.setLabel("Start New Game");
+	start_newgame_butt.setLabel("Yeni Oyun");
 	pause_resume_butt.setEnabled(true); // stays enabled from here on
-	pause_resume_butt.setLabel("Pause");
+	pause_resume_butt.setLabel("Durdur");
 	pause_resume_butt.validate();
 	sounds.playSoundtrack();
     }
@@ -607,19 +607,35 @@ public class Tetris extends Applet implements IGestureListener{
 	    e.printStackTrace();
 	}
 	mHandGestureDetector.setHandGestureListener(this);
-	
-	
-	
+
+
+
 	//create key listener for rotating, moving left, moving right
-	/*KeyListener key_listener = new KeyAdapter() {
-			public void keyPressed(KeyEvent e) {
-
-			}
-		};*/
-
+	KeyListener key_listener = new KeyAdapter() {
+	    public void keyPressed(KeyEvent e) {
+		int keyCode = e.getKeyCode();
+		System.out.println(keyCode);
+		switch( keyCode ) { 
+		    case KeyEvent.VK_UP:
+			onUpMove();
+			break;
+		    case KeyEvent.VK_DOWN:
+			onDownMove(); 
+			break;
+		    case KeyEvent.VK_LEFT:
+			onLeftMove();
+			break;
+		    case KeyEvent.VK_RIGHT :
+			onRightMove();
+			break;
+		}
+	    }
+	};
+	
+	game_grid.addKeyListener(key_listener);
 	// add the key listener to all components that might get focus
 	// so that it'll work regardless of which has focus
-	
+
 
 	Panel right_panel = new Panel(new GridLayout(3, 1));	
 	right_panel.setBackground(BACKGROUND_COLOR);
@@ -631,19 +647,20 @@ public class Tetris extends Applet implements IGestureListener{
 	right_panel.add(control_panel);
 
 	Panel tmp = new Panel(new BorderLayout());
-	tmp.add("North", new TetrisLabel("    Next Piece:"));
+	tmp.add("North", new TetrisLabel("    Yön: SOL"));
+	//tmp.add("Center", new TetrisLabel("    Sonra:"));
 	tmp.add("Center", next_piece_canvas);
 	tmp.setBackground(BACKGROUND_COLOR);
 	right_panel.add(tmp);
 
 	Panel stats_panel = new Panel(new GridLayout(4, 2));
-	stats_panel.add(new TetrisLabel("    Rows Deleted: "));
+	stats_panel.add(new TetrisLabel("    Klik: "));
 	stats_panel.add(rows_deleted_label);
 	stats_panel.add(new TetrisLabel("    Level: "));
 	stats_panel.add(level_label);
-	stats_panel.add(new TetrisLabel("    Score: "));
+	stats_panel.add(new TetrisLabel("    Skor: "));
 	stats_panel.add(score_label);
-	stats_panel.add(new TetrisLabel("    High Score: "));
+	stats_panel.add(new TetrisLabel("    En Yüksek: "));
 	stats_panel.add(high_score_label);
 	tmp = new Panel(new BorderLayout());
 	tmp.setBackground(BACKGROUND_COLOR);
@@ -715,7 +732,7 @@ public class Tetris extends Applet implements IGestureListener{
 	    cur_piece.paste();
 	}
 	game_grid.repaint();
-	
+
     }
 
     public void onDownMove() {

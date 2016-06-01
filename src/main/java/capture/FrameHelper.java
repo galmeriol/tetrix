@@ -4,6 +4,7 @@
 package capture;
 
 import java.awt.geom.Point2D;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,6 +18,7 @@ import java.util.Observer;
 import java.util.Vector;
 
 import models.CommonModel;
+import models.OpticalFlowModel;
 import models.OpticalFlowModelFarne;
 
 import org.opencv.core.*;
@@ -31,6 +33,8 @@ import org.opencv.objdetect.*;
 import org.opencv.core.Mat;
 import org.opencv.ml.*;
 import org.opencv.features2d.*;
+
+import classification.SVMClassifier;
 
 
 
@@ -76,10 +80,10 @@ public class FrameHelper extends Observable {
 
 
 	    //subtractor.apply(ctx.getMAINFrame(), ctx.getFRAMEBack(), 0.1);
-	    
+
 	    Mat main_ = new Mat();
 	    ctx.getMAINFrame().clone().copyTo(main_);
-	    
+
 	    Imgproc.morphologyEx(main_, main_, Imgproc.MORPH_DILATE | Imgproc.MORPH_ERODE, element);
 	    Imgproc.morphologyEx(main_, main_, Imgproc.MORPH_DILATE | Imgproc.MORPH_ERODE, element);
 	    Imgproc.morphologyEx(main_, main_, Imgproc.MORPH_DILATE | Imgproc.MORPH_ERODE, element);
@@ -88,7 +92,7 @@ public class FrameHelper extends Observable {
 	    Imgproc.morphologyEx(main_, main_, Imgproc.MORPH_DILATE | Imgproc.MORPH_ERODE, element);
 	    Imgproc.morphologyEx(main_, main_, Imgproc.MORPH_DILATE | Imgproc.MORPH_ERODE, element);
 	    Imgproc.morphologyEx(main_, main_, Imgproc.MORPH_DILATE | Imgproc.MORPH_ERODE, element);
-	    
+
 	    processedIms.add(main_.clone());
 	    subtractor2.apply(main_, ctx.getFRAMEBack(), 0.05);
 
@@ -106,8 +110,21 @@ public class FrameHelper extends Observable {
 	return processedIms;
     }
 
-    CommonModel act = new OpticalFlowModelFarne();
+    CommonModel act = null;
+    SVMClassifier classifier = new SVMClassifier();
     Direction mygesturedetect(){
+	if(act == null || !act.getClass().getName().equals(ctx.getModel().getClass().getName())){
+	    act = ctx.getModel();
+	}
+
+	//System.out.println(act.getClass().getName() + " - " + ctx.getModel().getClass().getName());
+
+	ctx.setClassifier(classifier);
+	try {
+	    ctx.setSvmmodel(classifier.loadRecentlyCreatedModel());
+	} catch (IOException e) {
+	    e.printStackTrace();
+	}
 	act.setCtx(ctx);
 
 	return act.get();
@@ -126,7 +143,7 @@ public class FrameHelper extends Observable {
 	List<Mat> processedIms = new ArrayList<Mat>();
 
 	return processedIms;
-	
+
 	/*
 	 * 
 	 * Skin color based detection deneme

@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Stack;
 
+import libsvm.svm_model;
+import models.CommonModel;
+
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfInt4;
@@ -14,10 +17,50 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.RotatedRect;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.objdetect.CascadeClassifier;
+
+import classification.CommonClassifier;
+import classification.SVMClassifier;
 
 public class Context {
     public GestureVars vars = new GestureVars();
+    private CommonModel model = null;
+    private int match_method = 0;
+    private svm_model svmmodel = null;
+    private SVMClassifier classifier = null;
+    public int getMatch_method() {
+        return match_method;
+    }
+
+
+    public void setMatch_method(int match_method) {
+        this.match_method = match_method;
+    }
+
+    private Mat hand = null;
+    private Rect handRect = null;
+    boolean isHandResampled = false;
+    
+ 
+    public CommonModel getModel() {
+        return model;
+    }
+
+
+    public boolean isHandResampled() {
+        return isHandResampled;
+    }
+
+
+    public void setHandResampled(boolean isHandResampled) {
+        this.isHandResampled = isHandResampled;
+    }
+
+
+    public void setModel(CommonModel model) {
+        this.model = model;
+    }
 
     private Mode MODE = null;
     private Mat MAINFrame = null;
@@ -30,6 +73,28 @@ public class Context {
     
     private List<List<Mat>> actions = null;
     private List<Mat> action = null;
+    private List<Mat> actionFlow = null;
+    private List<Mat> gridFlow = null;
+    public List<Mat> getActionFlow() {
+        return actionFlow;
+    }
+
+
+    public void setActionFlow(List<Mat> actionFlow) {
+        this.actionFlow = actionFlow;
+    }
+
+
+    public List<Mat> getActionHist() {
+        return actionHist;
+    }
+
+
+    public void setActionHist(List<Mat> actionHist) {
+        this.actionHist = actionHist;
+    }
+
+    private List<Mat> actionHist = null;
     
     public List<Mat> getAction() {
         return action;
@@ -213,8 +278,15 @@ public class Context {
 
     public void initFramesForOpticalFlowModel(){
 
+	classifier = new SVMClassifier();
+	svmmodel = new svm_model();
+	hand = new Mat();
+	isHandResampled = false;
 	actionDirNames = new ArrayList<String>();
+	gridFlow = new ArrayList<Mat>();
 	action = new ArrayList<Mat>();
+	actionFlow = new ArrayList<Mat>();
+	actionHist = new ArrayList<Mat>();
 	actions = new ArrayList<List<Mat>>();
 	action_features = new ArrayList<double[]>();
 	actions_features = new ArrayList<List<double[]>>();
@@ -278,6 +350,10 @@ public class Context {
     @SuppressWarnings("serial")
     public void initFramesForDiffModel(){
 
+	setHand(Imgcodecs.imread(System.getProperty("user.dir") + "/src/main/java/hand.jpg"));
+	
+	setHandRect(new Rect());
+	
 	MAINFrame = new Mat();
 	FRAMEBack = new Mat();
 	HISTFrame = new Mat();
@@ -519,6 +595,56 @@ public class Context {
 
     public void setActionDirNames(List<String> actionDirNames) {
 	this.actionDirNames = actionDirNames;
+    }
+
+
+    public Mat getHand() {
+	return hand;
+    }
+
+
+    public void setHand(Mat hand) {
+	this.hand = hand;
+    }
+
+
+    public Rect getHandRect() {
+	return handRect;
+    }
+
+
+    public void setHandRect(Rect handRect) {
+	this.handRect = handRect;
+    }
+
+
+    public List<Mat> getGridFlow() {
+	return gridFlow;
+    }
+
+
+    public void setGridFlow(List<Mat> gridFlow) {
+	this.gridFlow = gridFlow;
+    }
+
+
+    public svm_model getSvmmodel() {
+	return svmmodel;
+    }
+
+
+    public void setSvmmodel(svm_model svmmodel) {
+	this.svmmodel = svmmodel;
+    }
+
+
+    public CommonClassifier getClassifier() {
+	return classifier;
+    }
+
+
+    public void setClassifier(SVMClassifier classifier) {
+	this.classifier = classifier;
     }
 
 

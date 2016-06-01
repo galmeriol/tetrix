@@ -34,7 +34,7 @@ public class Frame extends JFrame{
 	videoPanel = new FramePanel();
 	
 	if(isConfigActive){
-	    configPanel = new ConfigPanel(new Dimension(200, 480));
+	    configPanel = new ConfigPanel();
 	    configPanel.setCtx(ctx);
 	    getContentPane().add(configPanel);
 	}
